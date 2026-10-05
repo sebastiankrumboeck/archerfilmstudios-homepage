@@ -55,7 +55,7 @@ export function renderMemberDetail(el, data) {
     </article>`;
 }
 
-export function renderOwnProfileForm(el, user, { onSave = null } = {}) {
+export function renderOwnProfileForm(el, user, { onSave = null, onSaved = null } = {}) {
   const wrap = document.createElement('form');
   wrap.setAttribute('data-profile-form', '');
   wrap.className = 'mt-8 grid max-w-md gap-3 border border-paper/15 p-6';
@@ -72,12 +72,13 @@ export function renderOwnProfileForm(el, user, { onSave = null } = {}) {
     const errEl = wrap.querySelector('[data-error]');
     try {
       const data = await onSave?.({ name: fd.get('name'), function: fd.get('function') });
-      const file = fd.get('avatar');
+      const file = wrap.querySelector('[name="avatar"]').files?.[0];
       if (file && file.size > 0) {
         if (file.size > 2 * 1024 * 1024) throw new Error('Image too large (max 2MB).');
         const res = await fetch('/api/users/me/avatar', { method: 'POST', credentials: 'include', headers: { 'Content-Type': file.type }, body: file });
         if (!res.ok) throw new Error(`Photo upload failed (${res.status}).`);
       }
+      onSaved?.(data);
       return data;
     } catch (err) {
       errEl.textContent = err.message;

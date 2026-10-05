@@ -160,11 +160,11 @@ export function validateProject(p) {
   return null;
 }
 
-async function withMemberCounts(db, projects) {
+export async function withMemberCounts(db, projects) {
   return Promise.all(projects.map(async (p) => {
     const count = await db.prepare('SELECT COUNT(*) AS n FROM memberships WHERE project_id = ?').bind(p.id).first();
-    const members = await db.prepare('SELECT u.id, u.name, u.avatar_r2_key FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.project_id = ?').bind(p.id).all();
-    return { ...p, member_count: count.n, members: members.results };
+    const members = await db.prepare('SELECT u.* FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.project_id = ?').bind(p.id).all();
+    return { ...p, member_count: count.n, members: members.results.map(publicUser) };
   }));
 }
 

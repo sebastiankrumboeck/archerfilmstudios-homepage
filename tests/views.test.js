@@ -149,4 +149,21 @@ describe('views', () => {
     renderProjectDetail(el, null, {});
     expect(el.textContent).toMatch(/not found/i);
   });
+
+  it('project detail uses the top-level member_count for the join label', () => {
+    const el = document.createElement('div');
+    const bareProject = { ...DETAIL.project };
+    delete bareProject.member_count;
+    renderProjectDetail(el, { ...DETAIL, project: bareProject, member_count: 2 }, {});
+    expect(el.textContent).toContain('Join (2/8)');
+  });
+
+  it('project detail disables join when the count reaches max', () => {
+    const el = document.createElement('div');
+    const bareProject = { ...DETAIL.project };
+    delete bareProject.member_count;
+    renderProjectDetail(el, { ...DETAIL, project: bareProject, member_count: 8 }, {});
+    expect(el.querySelector('[data-join]').disabled).toBe(true);
+    expect(el.textContent).toContain('Full (8/8)');
+  });
 });

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { renderMemberDetail, renderMemberList } from '../src/views/members.js';
+import { describe, expect, it, vi } from 'vitest';
+import { renderMemberDetail, renderMemberList, renderOwnProfileForm } from '../src/views/members.js';
 
 const ALICE = { id: 'u-1', name: 'Alice', function: 'Camera', avatar_r2_key: 'avatars/u-1-1.jpg', is_admin: false, is_vorstand: false, vorstand_title: null };
 const BOB = { id: 'u-2', name: 'Bob', function: 'Sound', avatar_r2_key: null, is_admin: false, is_vorstand: false, vorstand_title: null };
@@ -35,5 +35,27 @@ describe('members views', () => {
     const el = document.createElement('div');
     renderMemberDetail(el, null);
     expect(el.textContent).toMatch(/not found/i);
+  });
+
+  it('own profile form uploads the photo before signaling saved', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const el = document.createElement('div');
+      const onSave = vi.fn().mockResolvedValue({ user: ALICE });
+      const onSaved = vi.fn();
+      renderOwnProfileForm(el, ALICE, { onSave, onSaved });
+      const form = el.querySelector('[data-profile-form]');
+      Object.defineProperty(form.querySelector('[name="avatar"]'), 'files', {
+        value: [new File(['x'], 'a.jpg', { type: 'image/jpeg' })],
+      });
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await vi.waitFor(() => expect(onSaved).toHaveBeenCalled());
+      expect(fetchMock).toHaveBeenCalledWith('/api/users/me/avatar', expect.objectContaining({ method: 'POST' }));
+      expect(fetchMock.mock.invocationCallOrder[0]).toBeLessThan(onSaved.mock.invocationCallOrder[0]);
+      expect(el.querySelector('[data-error]').textContent).toBe('');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

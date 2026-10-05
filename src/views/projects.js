@@ -45,8 +45,9 @@ export function renderProjectDetail(el, data, { isAdmin = false, isMember = fals
   const member = isMember || data.isMember === true;
   const admin = isAdmin || data.canEdit === true;
   const color = intensityColor(project.intensity);
-  const label = joinLabel({ ...project, isMember: member }, member);
-  const disabled = joinDisabled(project, member) ? 'disabled' : '';
+  const counted = { ...project, member_count: data.member_count ?? members.length };
+  const label = joinLabel(counted, member);
+  const disabled = joinDisabled(counted, member) ? 'disabled' : '';
   const chips = members.map((m) => `
     <a href="/members/?id=${encodeURIComponent(m.id)}" title="${esc(m.name)}" class="flex items-center gap-2 border border-paper/15 px-3 py-1 text-sm transition-colors hover:border-amber">
       ${m.avatar_r2_key

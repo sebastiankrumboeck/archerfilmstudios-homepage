@@ -28,14 +28,11 @@ async function showDetail(id) {
   renderMemberDetail(view, data);
   if (me && me.id === data.user.id) {
     renderOwnProfileForm(view, data.user, {
-      onSave: async ({ name, function: fn }) => {
-        const updated = await api(`/api/users/${encodeURIComponent(me.id)}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ name, function: fn }),
-        });
-        await showDetail(targetId);
-        return updated;
-      },
+      onSave: async ({ name, function: fn }) => api(`/api/users/${encodeURIComponent(me.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name, function: fn }),
+      }),
+      onSaved: () => showDetail(targetId),
     });
   }
 }
