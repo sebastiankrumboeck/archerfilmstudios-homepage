@@ -3,11 +3,11 @@ import globals from 'globals';
 
 export default [
   {
-    ignores: ['dist/**', 'node_modules/**', '.superpowers/**'],
+    ignores: ['dist/**', 'node_modules/**', '.superpowers/**', '**/.wrangler/**'],
   },
   js.configs.recommended,
   {
-    files: ['**/*.js'],
+    files: ['**/*.js', '**/*.mjs'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

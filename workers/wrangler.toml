@@ -1,0 +1,12 @@
+name = "archer-filmstudios"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "archer-club"
+database_id = "REPLACE_WITH_D1_ID"
+
+[[r2_buckets]]
+binding = "AVATARS"
+bucket_name = "avatars"

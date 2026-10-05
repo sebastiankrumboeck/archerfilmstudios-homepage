@@ -70,12 +70,3 @@ export function bindImageFallbacks(root = document) {
     }
   };
 }
-
-if (typeof document !== 'undefined') {
-  document.documentElement.classList.add('js');
-  bindMenu(
-    document.querySelector('[data-menu-toggle]'),
-    document.querySelector('[data-mobile-nav]'),
-  );
-  bindImageFallbacks();
-}

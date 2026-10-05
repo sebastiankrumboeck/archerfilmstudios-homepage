@@ -8,7 +8,7 @@ const dom = new JSDOM(
 );
 const document = dom.window.document;
 
-describe('Frame & Motion page structure', () => {
+describe('Archer FilmStudios home page', () => {
   it('contains the four sections in navigation order', () => {
     const sections = Array.from(
       document.querySelectorAll('#hero, #work, #about, #contact'),
@@ -26,14 +26,12 @@ describe('Frame & Motion page structure', () => {
     expect(document.querySelector('#hero a[href="#work"]')).not.toBeNull();
   });
 
-  it('contains six work cards and two motion poster markers', () => {
-    expect(document.querySelectorAll('[data-work-card]')).toHaveLength(6);
-    expect(
-      document.querySelectorAll('[data-work-card][data-motion="true"]'),
-    ).toHaveLength(2);
-    expect(
-      document.querySelectorAll('[data-work-card] [data-play-marker]'),
-    ).toHaveLength(2);
+  it('contains eight local work cards without motion markers', () => {
+    expect(document.querySelectorAll('[data-work-card]')).toHaveLength(8);
+    expect(document.querySelectorAll('[data-work-card] [data-play-marker]')).toHaveLength(0);
+    for (const card of document.querySelectorAll('[data-work-card] img')) {
+      expect(card.getAttribute('src')).toMatch(/^\/work\/work-\d\.jpg$/);
+    }
   });
 
   it('prioritizes the hero image and lazy-loads gallery images', () => {
@@ -45,17 +43,11 @@ describe('Frame & Motion page structure', () => {
     );
 
     expect(heroImage?.getAttribute('fetchpriority')).toBe('high');
-    expect(galleryImages).toHaveLength(6);
+    expect(galleryImages).toHaveLength(8);
     for (const image of galleryImages) {
       expect(image.getAttribute('loading')).toBe('lazy');
       expect(image.getAttribute('alt')?.trim()).toBeTruthy();
     }
-  });
-
-  it('uses an accessible footer metadata color', () => {
-    const footerMetadata = document.querySelector('footer > div');
-
-    expect(footerMetadata?.className).toContain('text-paper/60');
   });
 
   it('makes the skip-link target focusable', () => {
@@ -67,19 +59,14 @@ describe('Frame & Motion page structure', () => {
     expect(document.activeElement).toBe(main);
   });
 
-  it('exposes an accessible mobile menu and safe external social link', () => {
-    const menuButton = document.querySelector('[data-menu-toggle]');
-    const mobileNavigation = document.querySelector('[data-mobile-nav]');
+  it('uses layout slots for the shared header and footer', () => {
+    expect(document.querySelector('#header-slot')).not.toBeNull();
+    expect(document.querySelector('#footer-slot')).not.toBeNull();
+  });
+
+  it('exposes a safe external social link', () => {
     const socialLink = document.querySelector('a[href*="instagram.com"]');
 
-    expect(menuButton?.getAttribute('aria-expanded')).toBe('false');
-    expect(menuButton?.getAttribute('aria-controls')).toBe(
-      'mobile-navigation',
-    );
-    expect(menuButton?.getAttribute('aria-label')).toBe(
-      'Open navigation menu',
-    );
-    expect(mobileNavigation?.id).toBe('mobile-navigation');
     expect(socialLink?.getAttribute('target')).toBe('_blank');
     expect(socialLink?.getAttribute('rel')).toContain('noreferrer');
   });

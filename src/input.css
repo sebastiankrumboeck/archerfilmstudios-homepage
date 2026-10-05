@@ -44,6 +44,23 @@
     text-wrap: balance;
   }
 
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  button:not(:disabled):hover {
+    filter: brightness(1.15);
+  }
+
+  button {
+    transition: filter 160ms ease;
+  }
+
   p {
     text-wrap: pretty;
   }

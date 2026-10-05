@@ -1,0 +1,1 @@
+{"name":"archer-workers","version":"0.1.0","type":"module","private":true,"scripts":{"test":"vitest run"},"dependencies":{"hono":"^4.7.0"},"devDependencies":{"vitest":"^5.0.2"}}
