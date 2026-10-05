@@ -7,6 +7,7 @@ const NAV = [
   ['/projects/', 'Projects', true],
   ['/calendar/', 'Calendar', true],
   ['/board/', 'Board', true],
+  ['/members/', 'Members', true],
   ['/contact/', 'Contact', false],
 ];
 
