@@ -66,6 +66,18 @@ app.get('/api/users', requireUser, async (c) => {
   return ok(c, { users: results.map(publicUser) });
 });
 
+app.get('/api/users/:id', requireUser, async (c) => {
+  const { id } = c.req.param();
+  const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
+  if (!user) return fail(c, 'Not found.', 404);
+  const joined = await c.env.DB.prepare(
+    'SELECT p.id, p.title FROM memberships m JOIN projects p ON p.id = m.project_id WHERE m.user_id = ? ORDER BY p.start_at',
+  ).bind(id).all();
+  const headed = await c.env.DB.prepare('SELECT id, title FROM projects WHERE head_user_id = ? ORDER BY start_at')
+    .bind(id).all();
+  return ok(c, { user: publicUser(user), projects: { joined: joined.results, headed: headed.results } });
+});
+
 app.patch('/api/users/:id', requireUser, async (c) => {
   const session = c.get('session');
   const { id } = c.req.param();
@@ -132,6 +144,12 @@ app.post('/api/users/:id/avatar', requireAdmin, async (c) => {
   return ok(c, { avatar_r2_key: result.key });
 });
 
+export function validateHeadId(headId) {
+  if (headId == null) return null;
+  if (typeof headId !== 'string' || !headId.trim()) return 'Unknown member.';
+  return null;
+}
+
 // --- Projects ---
 export function validateProject(p) {
   const intensity = Number(p.intensity);
@@ -155,6 +173,28 @@ app.get('/api/projects', requireUser, async (c) => {
   return ok(c, { projects: await withMemberCounts(c.env.DB, results) });
 });
 
+app.get('/api/projects/:id', requireUser, async (c) => {
+  const session = c.get('session');
+  const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(c.req.param('id')).first();
+  if (!project) return fail(c, 'Not found.', 404);
+  const [withMembers] = await withMemberCounts(c.env.DB, [project]);
+  let head = null;
+  if (project.head_user_id) {
+    const headRow = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(project.head_user_id).first();
+    head = headRow ? publicUser(headRow) : null;
+  }
+  const creatorRow = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(project.created_by).first();
+  return ok(c, {
+    project,
+    head,
+    members: withMembers.members,
+    creator: creatorRow ? publicUser(creatorRow) : null,
+    member_count: withMembers.member_count,
+    isMember: (withMembers.members ?? []).some((m) => m.id === session.user_id),
+    canEdit: !!session.is_admin,
+  });
+});
+
 app.post('/api/projects', requireAdmin, async (c) => {
   const session = c.get('session');
   const body = await c.req.json();
@@ -171,11 +211,19 @@ app.patch('/api/projects/:id', requireAdmin, async (c) => {
   const body = await c.req.json();
   const existing = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(c.req.param('id')).first();
   if (!existing) return fail(c, 'Not found.', 404);
+  if (Object.hasOwn(body, 'head_user_id')) {
+    const headErr = validateHeadId(body.head_user_id);
+    if (headErr) return fail(c, headErr, 400);
+    if (body.head_user_id != null) {
+      const headUser = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(body.head_user_id).first();
+      if (!headUser) return fail(c, 'Unknown member.', 400);
+    }
+  }
   const merged = { ...existing, ...body };
   const err = validateProject({ ...merged, intensity: Number(merged.intensity) });
   if (err) return fail(c, err, 400);
-  await c.env.DB.prepare('UPDATE projects SET title=?, description=?, intensity=?, location=?, start_at=?, end_at=?, max_members=? WHERE id=?')
-    .bind(merged.title, merged.description, Number(merged.intensity), merged.location, merged.start_at, merged.end_at, merged.max_members ?? null, existing.id).run();
+  await c.env.DB.prepare('UPDATE projects SET title=?, description=?, intensity=?, location=?, start_at=?, end_at=?, max_members=?, head_user_id=? WHERE id=?')
+    .bind(merged.title, merged.description, Number(merged.intensity), merged.location, merged.start_at, merged.end_at, merged.max_members ?? null, merged.head_user_id ?? null, existing.id).run();
   return ok(c, { project: await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(existing.id).first() });
 });
 

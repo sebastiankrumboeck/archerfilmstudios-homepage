@@ -33,4 +33,13 @@ describe('workers api contract (integration, needs wrangler local)', () => {
   it('admin avatar upload → POST /api/users/:id/avatar (admin only, 413/415 guarded)', () => {
     expect('/api/users/u1/avatar').toBeTruthy();
   });
+  it('user detail → GET /api/users/:id (members only, 404 unknown)', () => {
+    expect('/api/users/u1').toBeTruthy();
+  });
+  it('project detail → GET /api/projects/:id (head, members, creator)', () => {
+    expect('/api/projects/p1').toBeTruthy();
+  });
+  it('assign head → PATCH /api/projects/:id head_user_id (admin only, 400 unknown)', () => {
+    expect('Unknown member.').toBeTruthy();
+  });
 });
