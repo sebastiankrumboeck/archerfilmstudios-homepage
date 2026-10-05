@@ -20,6 +20,7 @@ CREATE TABLE projects (
   end_at TEXT NOT NULL,
   max_members INTEGER,
   created_by TEXT NOT NULL,
+  head_user_id TEXT,
   created_at TEXT NOT NULL
 );
 CREATE TABLE memberships (
