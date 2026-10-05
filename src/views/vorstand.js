@@ -128,9 +128,14 @@ export function renderVorstand(el, users = [], { isAdmin = false, links = {}, on
           manage.querySelector('[data-error]').textContent = err.message;
         }
       });
-      const uploadPhoto = async () => {
-        const status = row.querySelector('[data-photo-status]');
-        const file = row.querySelector('[data-photo]').files?.[0];
+      const photoInput = row.querySelector('[data-photo]');
+      const status = row.querySelector('[data-photo-status]');
+      photoInput?.addEventListener('change', () => {
+        const picked = photoInput.files?.[0];
+        status.textContent = picked ? `Selected: ${picked.name}` : '';
+      });
+      row.querySelector('[data-upload]')?.addEventListener('click', async () => {
+        const file = photoInput.files?.[0];
         if (!file) {
           status.textContent = 'Choose a file first.';
           return;
@@ -138,14 +143,13 @@ export function renderVorstand(el, users = [], { isAdmin = false, links = {}, on
         status.textContent = 'Uploading…';
         try {
           await onPhoto?.(u, file);
+          photoInput.value = '';
           status.textContent = 'Saved ✓';
         } catch (err) {
           status.textContent = err.message;
           manage.querySelector('[data-error]').textContent = err.message;
         }
-      };
-      row.querySelector('[data-photo]')?.addEventListener('change', uploadPhoto);
-      row.querySelector('[data-upload]')?.addEventListener('click', uploadPhoto);
+      });
       row.querySelector('[data-save]')?.addEventListener('click', async () => {
         try {
           await onRename?.(u, { name: row.querySelector('[data-name]').value, function: row.querySelector('[data-function]').value });

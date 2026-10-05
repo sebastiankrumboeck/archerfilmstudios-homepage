@@ -35,7 +35,7 @@ describe('vorstand view', () => {
     expect(onVorstand).toHaveBeenCalledWith(USERS[0], { is_vorstand: false, vorstand_title: null });
   });
 
-  it('admin photo input fires onPhoto with user and file', () => {
+  it('selecting a file does not upload and keeps the file available', () => {
     const el = document.createElement('div');
     const onPhoto = vi.fn();
     renderVorstand(el, USERS, { isAdmin: true, onPhoto });
@@ -44,7 +44,9 @@ describe('vorstand view', () => {
     const input = row.querySelector('[data-photo]');
     Object.defineProperty(input, 'files', { value: [file] });
     input.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(onPhoto).toHaveBeenCalledWith(USERS[0], file);
+    expect(onPhoto).not.toHaveBeenCalled();
+    expect(input.files[0]).toBe(file);
+    expect(row.querySelector('[data-photo-status]').textContent).toContain('ig.jpg');
   });
 
   it('renders the six static vorstand cards when no members match', () => {
@@ -121,6 +123,20 @@ describe('vorstand view', () => {
     row.querySelector('[data-upload]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await vi.waitFor(() => expect(onPhoto).toHaveBeenCalledWith(USERS[1], file));
     expect(row.querySelector('[data-photo-status]').textContent).toMatch(/saved/i);
+    expect(row.querySelector('[data-photo]').value).toBe('');
+  });
+
+  it('failed upload keeps the file and shows the error', async () => {
+    const el = document.createElement('div');
+    const onPhoto = vi.fn().mockRejectedValue(new Error('Nope'));
+    renderVorstand(el, USERS, { isAdmin: true, onPhoto });
+    const row = Array.from(el.querySelectorAll('[data-user]')).find((r) => r.textContent.includes('Ben'));
+    const file = new File(['x'], 'pic.jpg', { type: 'image/jpeg' });
+    const input = row.querySelector('[data-photo]');
+    Object.defineProperty(input, 'files', { value: [file] });
+    row.querySelector('[data-upload]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await vi.waitFor(() => expect(row.querySelector('[data-photo-status]').textContent).toBe('Nope'));
+    expect(input.files[0]).toBe(file);
   });
 
   it('upload without a file shows a hint and skips onPhoto', () => {

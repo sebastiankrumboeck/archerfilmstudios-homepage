@@ -148,4 +148,37 @@ describe('member profiles + project detail endpoints', () => {
     expect(res.status).toBe(201);
     expect(inserted).toContain('u-9');
   });
+  it('POST avatar persists the key and the user detail serves it back', async () => {
+    let updatedKey = null;
+    const me = { ...ADMIN_USER, id: 'u-1', is_admin: 0, avatar_r2_key: null };
+    const session = { id: 's1', user_id: 'u-1', expires_at: '2030-01-01T00:00:00Z', is_admin: 0 };
+    const env = {
+      DB: {
+        prepare: (sql) => ({
+          bind: (...args) => ({
+            first: async () => {
+              if (sql.includes('FROM sessions')) return session;
+              if (sql === 'SELECT * FROM users WHERE id = ?') return { ...me, avatar_r2_key: updatedKey };
+              return null;
+            },
+            all: async () => ({ results: [] }),
+            run: async () => {
+              if (sql.startsWith('UPDATE users SET avatar_r2_key')) updatedKey = args[0];
+              return {};
+            },
+          }),
+        }),
+      },
+      AVATARS: { put: async () => ({}) },
+    };
+    const post = await app.request('/api/users/me/avatar', {
+      method: 'POST',
+      headers: { Cookie: 'app-session=s1', 'Content-Type': 'image/jpeg' },
+      body: new Uint8Array([1, 2, 3]),
+    }, env);
+    expect(post.status).toBe(200);
+    expect(updatedKey).toMatch(/^avatars\/u-1-\d+\.jpg$/);
+    const get = await app.request('/api/users/u-1', { headers: { Cookie: 'app-session=s1' } }, env);
+    expect((await get.json()).data.user.avatar_r2_key).toBe(updatedKey);
+  });
 });
