@@ -5,9 +5,38 @@ export function avatarSrc(key) {
   return key ? `/avatars/${key.replace(/^avatars\//, '')}` : '';
 }
 
-export function renderVorstand(el, users = [], { isAdmin = false, onVorstand = null, onPhoto = null } = {}) {
+export const VORSTAND_STATIC = [
+  { name: 'Sebastian Krumböck', title: 'Obmann' },
+  { name: 'Maja Höllerer', title: 'Obmann Stellvertreterin' },
+  { name: 'Klemens Ruhrhofer', title: 'Kassier' },
+  { name: 'Lucia Mickova', title: 'Kassier Stellvertreter' },
+  { name: 'Simon Kranawetter', title: 'Schriftführer' },
+  { name: 'Alexander Ebner', title: 'Schriftführer Stellvertreter' },
+];
+
+export function renderVorstand(el, users = [], { isAdmin = false, onVorstand = null, onPhoto = null, onRename = null, onAdmin = null } = {}) {
   el.innerHTML = '';
   const board = users.filter((u) => u.is_vorstand);
+  const known = new Set(board.map((u) => (u.name ?? '').toLowerCase()));
+  const missing = VORSTAND_STATIC.filter((s) => !known.has(s.name.toLowerCase()));
+  if (missing.length) {
+    const heading = document.createElement('h2');
+    heading.className = 'font-display text-2xl uppercase';
+    heading.textContent = 'Vorstand';
+    el.append(heading);
+    const grid = document.createElement('div');
+    grid.className = 'mt-4 grid gap-6 sm:grid-cols-3';
+    for (const s of missing) {
+      const card = document.createElement('article');
+      card.className = 'border border-paper/15 p-5';
+      card.innerHTML = `
+        <div class="h-24 w-24 rounded-full bg-ink-soft"></div>
+        <h3 class="mt-3 font-display text-xl uppercase">${esc(s.name)}</h3>
+        <p class="text-amber text-sm uppercase">${esc(s.title)}</p>`;
+      grid.append(card);
+    }
+    el.append(grid);
+  }
   const grid = document.createElement('div');
   grid.className = 'grid gap-6 sm:grid-cols-3';
   for (const v of board) {
@@ -43,6 +72,12 @@ export function renderVorstand(el, users = [], { isAdmin = false, onVorstand = n
              <button type="button" data-remove class="border border-paper/20 px-3 py-1 text-xs uppercase">Remove</button>`
           : `<input data-title placeholder="Title (e.g. Director)" value="" class="border border-paper/20 bg-transparent p-2 text-sm" />
              <button type="button" data-add class="border border-amber px-3 py-1 text-xs uppercase">Add to board</button>`}
+        <input data-name value="${esc(u.name ?? '').replace(/`/g, '&#96;')}" placeholder="Name" class="border border-paper/20 bg-transparent p-2 text-sm" />
+        <input data-function value="${esc(u.function ?? '').replace(/`/g, '&#96;')}" placeholder="Role" class="border border-paper/20 bg-transparent p-2 text-sm" />
+        <button type="button" data-save class="border border-paper/20 px-3 py-1 text-xs uppercase">Save name</button>
+        ${u.is_admin
+          ? '<button type="button" data-demote class="border border-paper/20 px-3 py-1 text-xs uppercase">Remove admin</button>'
+          : '<button type="button" data-promote class="border border-amber px-3 py-1 text-xs uppercase">Make admin</button>'}
         <label class="text-xs uppercase text-paper/60">Photo <input data-photo type="file" accept="image/jpeg,image/png,image/webp" /></label>`;
       row.querySelector('[data-add]')?.addEventListener('click', async () => {
         try {
@@ -63,6 +98,27 @@ export function renderVorstand(el, users = [], { isAdmin = false, onVorstand = n
         if (!file) return;
         try {
           await onPhoto?.(u, file);
+        } catch (err) {
+          manage.querySelector('[data-error]').textContent = err.message;
+        }
+      });
+      row.querySelector('[data-save]')?.addEventListener('click', async () => {
+        try {
+          await onRename?.(u, { name: row.querySelector('[data-name]').value, function: row.querySelector('[data-function]').value });
+        } catch (err) {
+          manage.querySelector('[data-error]').textContent = err.message;
+        }
+      });
+      row.querySelector('[data-promote]')?.addEventListener('click', async () => {
+        try {
+          await onAdmin?.(u, { is_admin: true });
+        } catch (err) {
+          manage.querySelector('[data-error]').textContent = err.message;
+        }
+      });
+      row.querySelector('[data-demote]')?.addEventListener('click', async () => {
+        try {
+          await onAdmin?.(u, { is_admin: false });
         } catch (err) {
           manage.querySelector('[data-error]').textContent = err.message;
         }

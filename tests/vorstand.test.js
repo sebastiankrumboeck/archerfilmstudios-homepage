@@ -46,4 +46,45 @@ describe('vorstand view', () => {
     input.dispatchEvent(new Event('change', { bubbles: true }));
     expect(onPhoto).toHaveBeenCalledWith(USERS[0], file);
   });
+
+  it('renders the six static vorstand cards when no members match', () => {
+    const el = document.createElement('div');
+    renderVorstand(el, [], {});
+    for (const name of ['Sebastian Krumböck', 'Maja Höllerer', 'Klemens Ruhrhofer', 'Lucia Mickova', 'Simon Kranawetter', 'Alexander Ebner']) {
+      expect(el.textContent).toContain(name);
+    }
+    expect(el.textContent).toContain('Obmann Stellvertreterin');
+    expect(el.textContent).toContain('Schriftführer Stellvertreter');
+  });
+
+  it('hides a static card once a registered board member matches by name', () => {
+    const el = document.createElement('div');
+    const users = [{ id: 'u9', name: 'maja höllerer', function: '', avatar_r2_key: null, is_admin: false, is_vorstand: true, vorstand_title: 'Obmann Stellvertreterin' }];
+    renderVorstand(el, users, {});
+    expect(el.textContent).toContain('Sebastian Krumböck');
+    expect(el.textContent).not.toContain('Maja Höllerer');
+    expect(el.textContent).toContain('Obmann Stellvertreterin');
+  });
+
+  it('admin rename fires onRename with edited name and function', () => {
+    const el = document.createElement('div');
+    const onRename = vi.fn();
+    renderVorstand(el, USERS, { isAdmin: true, onRename });
+    const row = Array.from(el.querySelectorAll('[data-user]')).find((r) => r.textContent.includes('Ben'));
+    row.querySelector('[data-name]').value = 'Benedikt';
+    row.querySelector('[data-function]').value = 'Licht';
+    row.querySelector('[data-save]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onRename).toHaveBeenCalledWith(USERS[1], { name: 'Benedikt', function: 'Licht' });
+  });
+
+  it('admin toggle fires onAdmin to promote and demote', () => {
+    const el = document.createElement('div');
+    const onAdmin = vi.fn();
+    renderVorstand(el, USERS, { isAdmin: true, onAdmin });
+    const rows = Array.from(el.querySelectorAll('[data-user]'));
+    rows.find((r) => r.textContent.includes('Ben')).querySelector('[data-promote]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onAdmin).toHaveBeenCalledWith(USERS[1], { is_admin: true });
+    rows.find((r) => r.textContent.includes('Ava')).querySelector('[data-demote]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onAdmin).toHaveBeenCalledWith(USERS[0], { is_admin: false });
+  });
 });

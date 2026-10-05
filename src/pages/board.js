@@ -35,6 +35,20 @@ async function load() {
       });
       await load();
     },
+    onRename: async (user, { name, function: fn }) => {
+      await api(`/api/users/${user.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name, function: fn }),
+      });
+      await load();
+    },
+    onAdmin: async (user, { is_admin }) => {
+      await api(`/api/users/${user.id}/admin`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_admin }),
+      });
+      await load();
+    },
   });
 }
 
