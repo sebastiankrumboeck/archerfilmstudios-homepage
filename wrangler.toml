@@ -1,9 +1,9 @@
 name = "archer-filmstudios"
-main = "src/index.js"
+main = "workers/src/index.js"
 compatibility_date = "2026-01-01"
 
 [assets]
-directory = "../dist"
+directory = "./dist"
 run_worker_first = ["/api/*", "/avatars/*"]
 
 [[d1_databases]]
