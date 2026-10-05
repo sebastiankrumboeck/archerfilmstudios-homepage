@@ -1,9 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 import { intensityColor } from '../src/lib/intensity.js';
 import { buildMailto, monthSpan } from '../src/lib/calendar.js';
-import { renderProjectCard, renderProjectForm } from '../src/views/projects.js';
+import { renderProjectCard, renderProjectDetail, renderProjectForm } from '../src/views/projects.js';
 
 const PROJECT = { id: 'p1', title: 'Shoot', description: 'Desc', intensity: 4, location: 'Berlin', start_at: '2026-11-08T18:00:00Z', end_at: '2026-11-08T22:00:00Z', max_members: 8, member_count: 3, members: [] };
+const ALICE = { id: 'u-1', name: 'Alice', function: 'Camera', avatar_r2_key: null, is_admin: false, is_vorstand: false, vorstand_title: null };
+const BOB = { id: 'u-2', name: 'Bob', function: 'Sound', avatar_r2_key: null, is_admin: false, is_vorstand: false, vorstand_title: null };
+const CAROL = { id: 'u-9', name: 'Carol', function: 'Editing', avatar_r2_key: null, is_admin: true, is_vorstand: false, vorstand_title: null };
+const DETAIL = {
+  project: { ...PROJECT, head_user_id: 'u-1' },
+  head: ALICE,
+  members: [ALICE, BOB],
+  creator: CAROL,
+  member_count: 2,
+  isMember: false,
+  canEdit: false,
+};
 
 describe('views', () => {
   it('project card uses intensity color and join label Join (3/8)', () => {
@@ -98,5 +110,43 @@ describe('views', () => {
     renderProjectCard(el, { ...PROJECT, title: '<img src=x onerror=alert(1)>' }, {});
     expect(el.querySelector('img')).toBeNull();
     expect(el.textContent).toContain('<img src=x onerror=alert(1)>');
+  });
+
+  it('project detail renders head name and one link per member', () => {
+    const el = document.createElement('div');
+    renderProjectDetail(el, DETAIL, {});
+    expect(el.textContent).toContain('Alice');
+    expect(el.textContent).toContain('Head');
+    const links = [...el.querySelectorAll('a[href^="/members/?id="]')];
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/members/?id=u-1', '/members/?id=u-2']);
+  });
+
+  it('project detail falls back to the creator when head is null', () => {
+    const el = document.createElement('div');
+    renderProjectDetail(el, { ...DETAIL, head: null }, {});
+    expect(el.textContent).toContain('Carol');
+    expect(el.textContent).toContain('Organized by');
+  });
+
+  it('project detail escapes HTML in the title', () => {
+    const el = document.createElement('div');
+    renderProjectDetail(el, { ...DETAIL, project: { ...DETAIL.project, title: '<img src=x onerror=alert(1)>' } }, {});
+    expect(el.querySelector('img[src="x"]')).toBeNull();
+    expect(el.textContent).toContain('<img src=x onerror=alert(1)>');
+  });
+
+  it('project detail shows the head select only for admins', () => {
+    const admin = document.createElement('div');
+    renderProjectDetail(admin, DETAIL, { isAdmin: true });
+    expect(admin.querySelector('select[data-head]')).toBeTruthy();
+    const plain = document.createElement('div');
+    renderProjectDetail(plain, DETAIL, {});
+    expect(plain.querySelector('select[data-head]')).toBeNull();
+  });
+
+  it('project detail renders a not-found view for null data', () => {
+    const el = document.createElement('div');
+    renderProjectDetail(el, null, {});
+    expect(el.textContent).toMatch(/not found/i);
   });
 });

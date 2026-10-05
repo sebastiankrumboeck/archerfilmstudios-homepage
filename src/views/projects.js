@@ -35,6 +35,54 @@ export function renderProjectCard(el, project, { isAdmin = false, isMember = fal
   el.querySelector('[data-delete]')?.addEventListener('click', () => onDelete?.(project));
 }
 
+export function renderProjectDetail(el, data, { isAdmin = false, isMember = false, users = [], onJoin = null, onLeave = null, onAssignHead = null, onEdit = null, onDelete = null } = {}) {
+  el.innerHTML = '';
+  if (!data?.project) {
+    el.innerHTML = '<p class="text-red-400">Project not found.</p>';
+    return;
+  }
+  const { project, head, members = [], creator } = data;
+  const member = isMember || data.isMember === true;
+  const admin = isAdmin || data.canEdit === true;
+  const color = intensityColor(project.intensity);
+  const label = joinLabel({ ...project, isMember: member }, member);
+  const disabled = joinDisabled(project, member) ? 'disabled' : '';
+  const chips = members.map((m) => `
+    <a href="/members/?id=${encodeURIComponent(m.id)}" title="${esc(m.name)}" class="flex items-center gap-2 border border-paper/15 px-3 py-1 text-sm transition-colors hover:border-amber">
+      ${m.avatar_r2_key
+        ? `<img src="/avatars/${m.avatar_r2_key.replace(/^avatars\//, '')}" alt="${esc(m.name)}" class="h-6 w-6 rounded-full object-cover" loading="lazy" />`
+        : `<span class="grid h-6 w-6 place-items-center rounded-full bg-ink-soft text-xs">${esc((m.name ?? '?')[0])}</span>`}
+      ${esc(m.name)}
+    </a>`).join('');
+  const headLine = head
+    ? `<p class="mt-2 text-sm uppercase tracking-widest">Head: ${esc(head.name)}</p>`
+    : `<p class="mt-2 text-sm uppercase tracking-widest text-paper/60">Organized by ${creator ? `<a class="text-amber" href="/members/?id=${encodeURIComponent(creator.id)}">${esc(creator.name)}</a>` : 'the club'}</p>`;
+  const candidates = users.length ? users : members;
+  const headSelect = admin ? `
+    <label class="mt-4 block text-xs uppercase text-paper/60">Project head
+      <select data-head class="ml-2 border border-paper/20 bg-transparent p-2 text-sm text-paper">
+        <option value="">No head</option>
+        ${candidates.map((u) => `<option value="${esc(u.id)}"${project.head_user_id === u.id ? ' selected' : ''}>${esc(u.name)}</option>`).join('')}
+      </select>
+    </label>` : '';
+  el.innerHTML = `
+    <article class="border-t-2 pt-3" style="border-color:${color}">
+      <span class="inline-block px-2 py-1 text-xs" style="background:${color};color:#151412">${intensityLabel(project.intensity)}</span>
+      <h2 class="mt-2 font-display text-3xl uppercase">${esc(project.title)}</h2>
+      <p class="mt-2 text-paper/70">${esc(project.description ?? '')}</p>
+      <p class="mt-2 text-xs uppercase tracking-widest text-muted">${fmtDate(project.start_at)} → ${fmtDate(project.end_at)} · ${esc(project.location ?? '')} · max ${project.max_members ?? '∞'} · ${members.length} joined</p>
+      ${headLine}
+      <div class="mt-4 flex flex-wrap gap-2">${chips || '<span class="text-sm text-paper/60">No members yet.</span>'}</div>
+      <button type="button" data-join ${disabled} class="mt-4 border border-amber px-4 py-2 text-xs uppercase tracking-widest">${label}</button>
+      ${admin ? '<button type="button" data-edit class="mt-4 ml-2 border border-paper/20 px-4 py-2 text-xs uppercase">Edit</button><button type="button" data-delete class="mt-4 ml-2 border border-paper/20 px-4 py-2 text-xs uppercase">Delete</button>' : ''}
+      ${headSelect}
+    </article>`;
+  el.querySelector('[data-join]')?.addEventListener('click', () => (member ? onLeave : onJoin)?.(project));
+  el.querySelector('[data-edit]')?.addEventListener('click', () => onEdit?.(project));
+  el.querySelector('[data-delete]')?.addEventListener('click', () => onDelete?.(project));
+  el.querySelector('[data-head]')?.addEventListener('change', (e) => onAssignHead?.(e.target.value || null));
+}
+
 export function renderProjects(el, projects, opts = {}) {
   el.innerHTML = '';
   if (opts.isAdmin) {
