@@ -36,3 +36,7 @@ CREATE TABLE sessions (
 );
 CREATE INDEX idx_memberships_project ON memberships(project_id);
 CREATE INDEX idx_sessions_user ON sessions(user_id);
+CREATE TABLE vorstand_links (
+  slot TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL
+);

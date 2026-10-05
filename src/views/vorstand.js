@@ -6,37 +6,70 @@ export function avatarSrc(key) {
 }
 
 export const VORSTAND_STATIC = [
-  { name: 'Sebastian Krumböck', title: 'Obmann' },
-  { name: 'Maja Höllerer', title: 'Obmann Stellvertreterin' },
-  { name: 'Klemens Ruhrhofer', title: 'Kassier' },
-  { name: 'Lucia Mickova', title: 'Kassier Stellvertreter' },
-  { name: 'Simon Kranawetter', title: 'Schriftführer' },
-  { name: 'Alexander Ebner', title: 'Schriftführer Stellvertreter' },
+  { slot: 'obmann', name: 'Sebastian Krumböck', title: 'Obmann' },
+  { slot: 'obmann-stellvertreterin', name: 'Maja Höllerer', title: 'Obmann Stellvertreterin' },
+  { slot: 'kassier', name: 'Klemens Ruhrhofer', title: 'Kassier' },
+  { slot: 'kassier-stellvertreter', name: 'Lucia Mickova', title: 'Kassier Stellvertreter' },
+  { slot: 'schriftfuehrer', name: 'Simon Kranawetter', title: 'Schriftführer' },
+  { slot: 'schriftfuehrer-stellvertreter', name: 'Alexander Ebner', title: 'Schriftführer Stellvertreter' },
 ];
 
-export function renderVorstand(el, users = [], { isAdmin = false, onVorstand = null, onPhoto = null, onRename = null, onAdmin = null } = {}) {
+function staticSlotCard(s, users, { isAdmin, onLink }) {
+  const card = document.createElement('article');
+  card.setAttribute('data-slot', s.slot);
+  card.className = 'border border-paper/15 p-5';
+  const options = users.map((u) => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join('');
+  card.innerHTML = `
+    <div class="h-24 w-24 rounded-full bg-ink-soft"></div>
+    <h3 class="mt-3 font-display text-xl uppercase">${esc(s.name)}</h3>
+    <p class="text-amber text-sm uppercase">${esc(s.title)}</p>
+    ${isAdmin ? `<label class="mt-3 block text-xs uppercase text-paper/60">Link to member account
+      <span class="mt-1 flex gap-2">
+        <select data-link class="border border-paper/20 bg-transparent p-2 text-sm normal-case"><option value="">Select member…</option>${options}</select>
+        <button type="button" data-do-link class="border border-amber px-3 py-1 text-xs uppercase">Link</button>
+      </span></label>` : ''}`;
+  card.querySelector('[data-do-link]')?.addEventListener('click', () => {
+    const id = card.querySelector('[data-link]').value;
+    if (id) onLink?.(s.slot, id);
+  });
+  return card;
+}
+
+function linkedSlotCard(u, title, { isAdmin, onUnlink, slot }) {
+  const card = document.createElement('article');
+  card.setAttribute('data-slot', slot);
+  card.className = 'border border-amber/40 p-5';
+  card.innerHTML = `
+    <a href="/members/?id=${encodeURIComponent(u.id)}">
+      ${u.avatar_r2_key ? `<img src="${avatarSrc(u.avatar_r2_key)}" alt="${esc(u.name)}" class="h-24 w-24 rounded-full object-cover" loading="lazy" />` : '<div class="h-24 w-24 rounded-full bg-ink-soft"></div>'}
+    </a>
+    <h3 class="mt-3 font-display text-xl uppercase"><a href="/members/?id=${encodeURIComponent(u.id)}">${esc(u.name)}</a></h3>
+    <p class="text-amber text-sm uppercase">${esc(title)}</p>
+    <p class="mt-1 text-sm text-paper/60">${esc(u.function ?? '')}</p>
+    ${isAdmin ? '<button type="button" data-unlink class="mt-3 border border-paper/20 px-3 py-1 text-xs uppercase">Unlink</button>' : ''}`;
+  card.querySelector('[data-unlink]')?.addEventListener('click', () => onUnlink?.(slot));
+  return card;
+}
+
+export function renderVorstand(el, users = [], { isAdmin = false, links = {}, onVorstand = null, onPhoto = null, onRename = null, onAdmin = null, onLink = null, onUnlink = null } = {}) {
   el.innerHTML = '';
-  const board = users.filter((u) => u.is_vorstand);
-  const known = new Set(board.map((u) => (u.name ?? '').toLowerCase()));
-  const missing = VORSTAND_STATIC.filter((s) => !known.has(s.name.toLowerCase()));
-  if (missing.length) {
-    const heading = document.createElement('h2');
-    heading.className = 'font-display text-2xl uppercase';
-    heading.textContent = 'Vorstand';
-    el.append(heading);
-    const grid = document.createElement('div');
-    grid.className = 'mt-4 grid gap-6 sm:grid-cols-3';
-    for (const s of missing) {
-      const card = document.createElement('article');
-      card.className = 'border border-paper/15 p-5';
-      card.innerHTML = `
-        <div class="h-24 w-24 rounded-full bg-ink-soft"></div>
-        <h3 class="mt-3 font-display text-xl uppercase">${esc(s.name)}</h3>
-        <p class="text-amber text-sm uppercase">${esc(s.title)}</p>`;
-      grid.append(card);
-    }
-    el.append(grid);
+  const byId = new Map(users.map((u) => [u.id, u]));
+  const claimed = new Set(Object.values(links ?? {}));
+  const heading = document.createElement('h2');
+  heading.className = 'font-display text-2xl uppercase';
+  heading.textContent = 'Vorstand';
+  el.append(heading);
+  const slots = document.createElement('div');
+  slots.className = 'mt-4 grid gap-6 sm:grid-cols-3';
+  for (const s of VORSTAND_STATIC) {
+    const linked = byId.get(links?.[s.slot]);
+    slots.append(linked
+      ? linkedSlotCard(linked, s.title, { isAdmin, onUnlink, slot: s.slot })
+      : staticSlotCard(s, users, { isAdmin, onLink }));
   }
+  el.append(slots);
+
+  const board = users.filter((u) => u.is_vorstand && !claimed.has(u.id));
   const grid = document.createElement('div');
   grid.className = 'grid gap-6 sm:grid-cols-3';
   for (const v of board) {

@@ -6,7 +6,7 @@ await mountLayout('board');
 const view = document.querySelector('#app-view');
 
 async function load() {
-  const { users } = await api('/api/users');
+  const { users, links } = await api('/api/users');
   let me;
   try {
     ({ user: me } = await api('/api/me'));
@@ -15,6 +15,7 @@ async function load() {
   }
   renderVorstand(view, users, {
     isAdmin: !!me?.is_admin,
+    links: links ?? {},
     onVorstand: async (user, { is_vorstand, vorstand_title }) => {
       await api(`/api/users/${user.id}/vorstand`, {
         method: 'PATCH',
@@ -47,6 +48,17 @@ async function load() {
         method: 'PATCH',
         body: JSON.stringify({ is_admin }),
       });
+      await load();
+    },
+    onLink: async (slot, userId) => {
+      await api('/api/vorstand-links', {
+        method: 'PUT',
+        body: JSON.stringify({ slot, user_id: userId }),
+      });
+      await load();
+    },
+    onUnlink: async (slot) => {
+      await api(`/api/vorstand-links/${encodeURIComponent(slot)}`, { method: 'DELETE' });
       await load();
     },
   });

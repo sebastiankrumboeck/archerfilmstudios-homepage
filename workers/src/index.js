@@ -63,7 +63,7 @@ app.get('/api/me', async (c) => {
 // --- Users ---
 app.get('/api/users', requireUser, async (c) => {
   const { results } = await c.env.DB.prepare('SELECT * FROM users ORDER BY created_at').all();
-  return ok(c, { users: results.map(publicUser) });
+  return ok(c, { users: results.map(publicUser), links: await vorstandLinkMap(c.env.DB) });
 });
 
 app.get('/api/users/:id', requireUser, async (c) => {
@@ -113,6 +113,34 @@ app.patch('/api/users/:id/vorstand', requireAdmin, async (c) => {
   const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
   if (!user) return fail(c, 'Not found.', 404);
   return ok(c, { user: publicUser(user) });
+});
+
+export const VORSTAND_SLOTS = ['obmann', 'obmann-stellvertreterin', 'kassier', 'kassier-stellvertreter', 'schriftfuehrer', 'schriftfuehrer-stellvertreter'];
+
+async function vorstandLinkMap(db) {
+  const { results } = await db.prepare('SELECT slot, user_id FROM vorstand_links').all();
+  return Object.fromEntries((results ?? []).map((r) => [r.slot, r.user_id]));
+}
+
+app.get('/api/vorstand-links', requireUser, async (c) => {
+  return ok(c, { links: await vorstandLinkMap(c.env.DB) });
+});
+
+app.put('/api/vorstand-links', requireAdmin, async (c) => {
+  const { slot, user_id } = await c.req.json();
+  if (!VORSTAND_SLOTS.includes(slot)) return fail(c, 'Unknown board seat.', 400);
+  const headErr = validateHeadId(user_id);
+  if (headErr) return fail(c, headErr, 400);
+  const user = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(user_id).first();
+  if (!user) return fail(c, 'Unknown member.', 400);
+  await c.env.DB.prepare('INSERT OR REPLACE INTO vorstand_links (slot, user_id) VALUES (?, ?)')
+    .bind(slot, user_id).run();
+  return ok(c, { links: await vorstandLinkMap(c.env.DB) });
+});
+
+app.delete('/api/vorstand-links/:slot', requireAdmin, async (c) => {
+  await c.env.DB.prepare('DELETE FROM vorstand_links WHERE slot = ?').bind(c.req.param('slot')).run();
+  return ok(c, { links: await vorstandLinkMap(c.env.DB) });
 });
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];

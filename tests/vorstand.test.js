@@ -57,13 +57,15 @@ describe('vorstand view', () => {
     expect(el.textContent).toContain('Schriftführer Stellvertreter');
   });
 
-  it('hides a static card once a registered board member matches by name', () => {
+  it('static card stays until explicitly linked, even on name match', () => {
     const el = document.createElement('div');
     const users = [{ id: 'u9', name: 'maja höllerer', function: '', avatar_r2_key: null, is_admin: false, is_vorstand: true, vorstand_title: 'Obmann Stellvertreterin' }];
-    renderVorstand(el, users, {});
-    expect(el.textContent).toContain('Sebastian Krumböck');
-    expect(el.textContent).not.toContain('Maja Höllerer');
-    expect(el.textContent).toContain('Obmann Stellvertreterin');
+    renderVorstand(el, users, { links: {} });
+    expect(el.textContent).toContain('Maja Höllerer');
+    const linked = document.createElement('div');
+    renderVorstand(linked, users, { links: { 'obmann-stellvertreterin': 'u9' } });
+    expect(linked.textContent).not.toContain('Maja Höllerer');
+    expect(linked.textContent).toContain('maja höllerer');
   });
 
   it('admin rename fires onRename with edited name and function', () => {
@@ -86,5 +88,41 @@ describe('vorstand view', () => {
     expect(onAdmin).toHaveBeenCalledWith(USERS[1], { is_admin: true });
     rows.find((r) => r.textContent.includes('Ava')).querySelector('[data-demote]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(onAdmin).toHaveBeenCalledWith(USERS[0], { is_admin: false });
+  });
+
+  it('linked slot renders the user account instead of the static card', () => {
+    const el = document.createElement('div');
+    const klemens = { id: 'u-9', name: 'Klemens', function: 'Kamera', avatar_r2_key: 'avatars/u-9-1.jpg', is_admin: false, is_vorstand: true, vorstand_title: 'Kassier' };
+    renderVorstand(el, [klemens], { links: { kassier: 'u-9' } });
+    expect(el.querySelector('img[src="/avatars/u-9-1.jpg"]')).toBeTruthy();
+    expect(el.textContent).toContain('Klemens');
+    expect(el.textContent).not.toContain('Klemens Ruhrhofer');
+    expect(el.querySelector('a[href="/members/?id=u-9"]')).toBeTruthy();
+  });
+
+  it('unlinked static card offers link UI to admins only', () => {
+    const admin = document.createElement('div');
+    renderVorstand(admin, [USERS[1]], { isAdmin: true, links: {} });
+    const select = admin.querySelector('select[data-link]');
+    expect(select).toBeTruthy();
+    expect([...select.options].some((o) => o.value === 'u2')).toBe(true);
+    const plain = document.createElement('div');
+    renderVorstand(plain, [USERS[1]], { links: {} });
+    expect(plain.querySelector('select[data-link]')).toBeNull();
+  });
+
+  it('link button fires onLink with slot and user id, unlink fires onUnlink', () => {
+    const el = document.createElement('div');
+    const onLink = vi.fn();
+    const onUnlink = vi.fn();
+    renderVorstand(el, [USERS[1]], { isAdmin: true, links: {}, onLink, onUnlink });
+    const card = Array.from(el.querySelectorAll('[data-slot]')).find((c) => c.dataset.slot === 'kassier');
+    card.querySelector('select[data-link]').value = 'u2';
+    card.querySelector('[data-do-link]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onLink).toHaveBeenCalledWith('kassier', 'u2');
+    const el2 = document.createElement('div');
+    renderVorstand(el2, [USERS[1]], { isAdmin: true, links: { obmann: 'u2' }, onLink, onUnlink });
+    el2.querySelector('[data-unlink]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onUnlink).toHaveBeenCalledWith('obmann');
   });
 });
