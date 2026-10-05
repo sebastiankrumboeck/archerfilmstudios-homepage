@@ -104,17 +104,19 @@ export function renderProjects(el, projects, opts = {}) {
   el.append(wrap);
 }
 
-export function renderProjectForm(el, { project = null, onSave = null, onCreate = null } = {}) {
+export function renderProjectForm(el, { project = null, users = [], onSave = null, onCreate = null } = {}) {
   el.querySelector('[data-project-form]')?.remove();
   const editing = !!project;
   const form = document.createElement('form');
   form.setAttribute('data-project-form', '');
   form.className = 'mb-8 grid max-w-2xl gap-3';
+  const headOptions = users.map((u) => `<option value="${esc(u.id)}"${project?.head_user_id === u.id ? ' selected' : ''}>${esc(u.name)}</option>`).join('');
   form.innerHTML = `
     <input name="title" required placeholder="Title" value="${escAttr(project?.title ?? '')}" class="border border-paper/20 bg-transparent p-3" />
     <textarea name="description" placeholder="Description" class="border border-paper/20 bg-transparent p-3">${esc(project?.description ?? '')}</textarea>
     <label class="text-xs uppercase">Intensity (1-5) <input name="intensity" type="number" min="1" max="5" required value="${project?.intensity ?? ''}" class="border border-paper/20 bg-transparent p-3" /></label>
     <input name="location" placeholder="Location" value="${escAttr(project?.location ?? '')}" class="border border-paper/20 bg-transparent p-3" />
+    ${users.length ? `<label class="text-xs uppercase">Project head <select name="head_user_id" class="border border-paper/20 bg-transparent p-3"><option value="">No head</option>${headOptions}</select></label>` : ''}
     <label class="text-xs uppercase">Start <input name="start_at" type="datetime-local" required value="${toLocalInput(project?.start_at)}" class="border border-paper/20 bg-transparent p-3" /></label>
     <label class="text-xs uppercase">End <input name="end_at" type="datetime-local" required value="${toLocalInput(project?.end_at)}" class="border border-paper/20 bg-transparent p-3" /></label>
     <input name="max_members" type="number" min="1" placeholder="Max members" value="${project?.max_members ?? ''}" class="border border-paper/20 bg-transparent p-3" />
@@ -123,10 +125,12 @@ export function renderProjectForm(el, { project = null, onSave = null, onCreate 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
+    const headSelect = form.querySelector('[name="head_user_id"]');
     const payload = {
       title: fd.get('title'), description: fd.get('description'), intensity: Number(fd.get('intensity')),
       location: fd.get('location'), start_at: new Date(fd.get('start_at')).toISOString(),
       end_at: new Date(fd.get('end_at')).toISOString(), max_members: fd.get('max_members') ? Number(fd.get('max_members')) : null,
+      ...(headSelect ? { head_user_id: headSelect.value || null } : {}),
     };
     try {
       const data = editing

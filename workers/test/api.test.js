@@ -115,4 +115,37 @@ describe('member profiles + project detail endpoints', () => {
     }, { DB: fakeDb({ session: ADMIN_SESSION, project: PROJECT_ROW }) });
     expect(res.status).toBe(200);
   });
+  it('POST project with unknown head gives 400 Unknown member.', async () => {
+    const res = await app.request('/api/projects', {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'T', description: '', intensity: 2, location: '', start_at: '2026-11-08T18:00:00Z', end_at: '2026-11-08T20:00:00Z', max_members: null, head_user_id: 'nope' }),
+    }, { DB: fakeDb({ session: ADMIN_SESSION, userExists: null }) });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('Unknown member.');
+  });
+  it('POST project with known head stores it and gives 201', async () => {
+    let inserted = null;
+    const db = {
+      prepare: (sql) => ({
+        bind: (...args) => ({
+          first: async () => {
+            if (sql.includes('FROM sessions')) return ADMIN_SESSION;
+            if (sql === 'SELECT id FROM users WHERE id = ?') return { id: 'u-9' };
+            if (sql === 'SELECT * FROM projects WHERE id = ?') return { ...PROJECT_ROW, head_user_id: 'u-9' };
+            return null;
+          },
+          all: async () => ({ results: [] }),
+          run: async () => { if (sql.startsWith('INSERT INTO projects')) inserted = args; return {}; },
+        }),
+      }),
+    };
+    const res = await app.request('/api/projects', {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'T', description: '', intensity: 2, location: '', start_at: '2026-11-08T18:00:00Z', end_at: '2026-11-08T20:00:00Z', max_members: null, head_user_id: 'u-9' }),
+    }, { DB: db });
+    expect(res.status).toBe(201);
+    expect(inserted).toContain('u-9');
+  });
 });

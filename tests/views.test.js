@@ -166,4 +166,34 @@ describe('views', () => {
     expect(el.querySelector('[data-join]').disabled).toBe(true);
     expect(el.textContent).toContain('Full (8/8)');
   });
+
+  it('project form offers head selection and sends head_user_id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true, data: { project: { ...PROJECT, head_user_id: 'u-1' } } }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const el = document.createElement('div');
+      const onCreate = vi.fn();
+      renderProjectForm(el, { users: [{ id: 'u-1', name: 'Alice' }], onCreate });
+      const form = el.querySelector('form');
+      const select = form.querySelector('select[name="head_user_id"]');
+      expect([...select.options].some((o) => o.value === 'u-1' && o.textContent === 'Alice')).toBe(true);
+      form.querySelector('[name="title"]').value = 'T';
+      form.querySelector('[name="intensity"]').value = '3';
+      form.querySelector('[name="start_at"]').value = '2026-11-08T18:00';
+      form.querySelector('[name="end_at"]').value = '2026-11-08T20:00';
+      select.value = 'u-1';
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe('/api/projects');
+      expect(opts.method).toBe('POST');
+      expect(JSON.parse(opts.body).head_user_id).toBe('u-1');
+      await vi.waitFor(() => expect(onCreate).toHaveBeenCalled());
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

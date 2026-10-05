@@ -111,7 +111,9 @@ export function renderVorstand(el, users = [], { isAdmin = false, links = {}, on
         ${u.is_admin
           ? '<button type="button" data-demote class="border border-paper/20 px-3 py-1 text-xs uppercase">Remove admin</button>'
           : '<button type="button" data-promote class="border border-amber px-3 py-1 text-xs uppercase">Make admin</button>'}
-        <label class="text-xs uppercase text-paper/60">Photo <input data-photo type="file" accept="image/jpeg,image/png,image/webp" /></label>`;
+        <label class="text-xs uppercase text-paper/60">Photo <input data-photo type="file" accept="image/jpeg,image/png,image/webp" /></label>
+        <button type="button" data-upload class="border border-amber px-3 py-1 text-xs uppercase">Upload</button>
+        <span data-photo-status class="text-xs text-paper/60"></span>`;
       row.querySelector('[data-add]')?.addEventListener('click', async () => {
         try {
           await onVorstand?.(u, { is_vorstand: true, vorstand_title: row.querySelector('[data-title]').value || 'Vorstand' });
@@ -126,15 +128,24 @@ export function renderVorstand(el, users = [], { isAdmin = false, links = {}, on
           manage.querySelector('[data-error]').textContent = err.message;
         }
       });
-      row.querySelector('[data-photo]')?.addEventListener('change', async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+      const uploadPhoto = async () => {
+        const status = row.querySelector('[data-photo-status]');
+        const file = row.querySelector('[data-photo]').files?.[0];
+        if (!file) {
+          status.textContent = 'Choose a file first.';
+          return;
+        }
+        status.textContent = 'Uploading…';
         try {
           await onPhoto?.(u, file);
+          status.textContent = 'Saved ✓';
         } catch (err) {
+          status.textContent = err.message;
           manage.querySelector('[data-error]').textContent = err.message;
         }
-      });
+      };
+      row.querySelector('[data-photo]')?.addEventListener('change', uploadPhoto);
+      row.querySelector('[data-upload]')?.addEventListener('click', uploadPhoto);
       row.querySelector('[data-save]')?.addEventListener('click', async () => {
         try {
           await onRename?.(u, { name: row.querySelector('[data-name]').value, function: row.querySelector('[data-function]').value });

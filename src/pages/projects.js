@@ -41,7 +41,7 @@ async function loadDetail(id) {
         alert(err.message);
       }
     },
-    onEdit: (project) => renderProjectForm(view, { project, onSave: () => loadDetail(id) }),
+    onEdit: (project) => renderProjectForm(view, { project, users, onSave: () => loadDetail(id) }),
     onDelete: async (project) => {
       if (!confirm(`Really delete "${project.title}"?`)) return;
       try {
@@ -62,9 +62,18 @@ async function load() {
   } catch {
     me = null;
   }
+  let users = [];
+  if (me?.is_admin) {
+    try {
+      ({ users } = await api('/api/users'));
+    } catch {
+      users = [];
+    }
+  }
   renderProjects(view, projects, {
     myId: me?.id,
     isAdmin: !!me?.is_admin,
+    users,
     onJoin: async (project) => {
       try {
         await api(`/api/projects/${project.id}/join`, { method: 'POST', body: '{}' });
@@ -84,7 +93,7 @@ async function load() {
       }
     },
     onCreate: () => load(),
-    onEdit: (project) => renderProjectForm(view, { project, onSave: () => load() }),
+    onEdit: (project) => renderProjectForm(view, { project, users, onSave: () => load() }),
     onDelete: async (project) => {
       if (!confirm(`Really delete "${project.title}"?`)) return;
       try {

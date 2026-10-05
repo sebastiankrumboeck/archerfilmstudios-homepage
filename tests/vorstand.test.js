@@ -111,6 +111,28 @@ describe('vorstand view', () => {
     expect(plain.querySelector('select[data-link]')).toBeNull();
   });
 
+  it('upload button fires onPhoto with the selected file and shows status', async () => {
+    const el = document.createElement('div');
+    const onPhoto = vi.fn().mockResolvedValue(undefined);
+    renderVorstand(el, USERS, { isAdmin: true, onPhoto });
+    const row = Array.from(el.querySelectorAll('[data-user]')).find((r) => r.textContent.includes('Ben'));
+    const file = new File(['x'], 'pic.jpg', { type: 'image/jpeg' });
+    Object.defineProperty(row.querySelector('[data-photo]'), 'files', { value: [file] });
+    row.querySelector('[data-upload]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await vi.waitFor(() => expect(onPhoto).toHaveBeenCalledWith(USERS[1], file));
+    expect(row.querySelector('[data-photo-status]').textContent).toMatch(/saved/i);
+  });
+
+  it('upload without a file shows a hint and skips onPhoto', () => {
+    const el = document.createElement('div');
+    const onPhoto = vi.fn();
+    renderVorstand(el, USERS, { isAdmin: true, onPhoto });
+    const row = Array.from(el.querySelectorAll('[data-user]')).find((r) => r.textContent.includes('Ben'));
+    row.querySelector('[data-upload]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onPhoto).not.toHaveBeenCalled();
+    expect(row.querySelector('[data-photo-status]').textContent).toMatch(/choose a file/i);
+  });
+
   it('link button fires onLink with slot and user id, unlink fires onUnlink', () => {
     const el = document.createElement('div');
     const onLink = vi.fn();

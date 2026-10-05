@@ -223,14 +223,27 @@ app.get('/api/projects/:id', requireUser, async (c) => {
   });
 });
 
+export async function checkHeadId(db, body) {
+  if (!Object.hasOwn(body, 'head_user_id')) return null;
+  const headErr = validateHeadId(body.head_user_id);
+  if (headErr) return headErr;
+  if (body.head_user_id != null) {
+    const headUser = await db.prepare('SELECT id FROM users WHERE id = ?').bind(body.head_user_id).first();
+    if (!headUser) return 'Unknown member.';
+  }
+  return null;
+}
+
 app.post('/api/projects', requireAdmin, async (c) => {
   const session = c.get('session');
   const body = await c.req.json();
   const err = validateProject({ ...body, intensity: Number(body.intensity) });
   if (err) return fail(c, err, 400);
+  const headErr = await checkHeadId(c.env.DB, body);
+  if (headErr) return fail(c, headErr, 400);
   const id = uid('p');
-  await c.env.DB.prepare('INSERT INTO projects (id, title, description, intensity, location, start_at, end_at, max_members, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, body.title.trim(), body.description ?? '', Number(body.intensity), body.location ?? '', body.start_at, body.end_at, body.max_members ?? null, session.user_id, nowISO()).run();
+  await c.env.DB.prepare('INSERT INTO projects (id, title, description, intensity, location, start_at, end_at, max_members, created_by, head_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, body.title.trim(), body.description ?? '', Number(body.intensity), body.location ?? '', body.start_at, body.end_at, body.max_members ?? null, session.user_id, body.head_user_id ?? null, nowISO()).run();
   const p = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(id).first();
   return ok(c, { project: p }, 201);
 });
@@ -239,14 +252,8 @@ app.patch('/api/projects/:id', requireAdmin, async (c) => {
   const body = await c.req.json();
   const existing = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(c.req.param('id')).first();
   if (!existing) return fail(c, 'Not found.', 404);
-  if (Object.hasOwn(body, 'head_user_id')) {
-    const headErr = validateHeadId(body.head_user_id);
-    if (headErr) return fail(c, headErr, 400);
-    if (body.head_user_id != null) {
-      const headUser = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(body.head_user_id).first();
-      if (!headUser) return fail(c, 'Unknown member.', 400);
-    }
-  }
+  const headErr = await checkHeadId(c.env.DB, body);
+  if (headErr) return fail(c, headErr, 400);
   const merged = { ...existing, ...body };
   const err = validateProject({ ...merged, intensity: Number(merged.intensity) });
   if (err) return fail(c, err, 400);
