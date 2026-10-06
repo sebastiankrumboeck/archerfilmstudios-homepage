@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { renderMemberDetail, renderMemberList, renderOwnProfileForm } from '../src/views/members.js';
+import { matchMember, renderMemberDetail, renderMemberList, renderOwnProfileForm } from '../src/views/members.js';
 
 const ALICE = { id: 'u-1', name: 'Alice', function: 'Camera', avatar_r2_key: 'avatars/u-1-1.jpg', is_admin: false, is_vorstand: false, vorstand_title: null };
 const BOB = { id: 'u-2', name: 'Bob', function: 'Sound', avatar_r2_key: null, is_admin: false, is_vorstand: false, vorstand_title: null };
@@ -12,6 +12,24 @@ describe('members views', () => {
     expect(links.map((a) => a.getAttribute('href'))).toEqual(['/members/?id=u-1', '/members/?id=u-2']);
     expect(el.textContent).toContain('Alice');
     expect(el.textContent).toContain('Bob');
+  });
+
+  it('list search box fires onSearch with the typed value', () => {
+    const el = document.createElement('div');
+    const onSearch = vi.fn();
+    renderMemberList(el, [ALICE, BOB], { onSearch });
+    const input = el.querySelector('[data-member-search]');
+    expect(input).toBeTruthy();
+    input.value = 'ali';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(onSearch).toHaveBeenCalledWith('ali');
+  });
+
+  it('matchMember matches name and function case-insensitively', () => {
+    expect(matchMember(ALICE, '')).toBe(true);
+    expect(matchMember(ALICE, 'ali')).toBe(true);
+    expect(matchMember(BOB, 'SOUND')).toBe(true);
+    expect(matchMember(ALICE, 'zzz')).toBe(false);
   });
 
   it('detail renders avatar img when set and fallback circle otherwise', () => {

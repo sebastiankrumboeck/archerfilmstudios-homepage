@@ -1,6 +1,6 @@
 import { mountLayout } from '../layout.js';
 import { api } from '../api/client.js';
-import { renderMemberDetail, renderMemberList, renderOwnProfileForm } from '../views/members.js';
+import { matchMember, renderMemberDetail, renderMemberList, renderOwnProfileForm } from '../views/members.js';
 
 await mountLayout('members');
 const view = document.querySelector('#app-view');
@@ -9,7 +9,16 @@ const requestedId = params.get('id');
 
 async function showList() {
   const { users } = await api('/api/users');
-  renderMemberList(view, users);
+  const byId = new Map(users.map((u) => [u.id, u]));
+  renderMemberList(view, users, {
+    onSearch: (query) => {
+      for (const row of view.querySelectorAll('a[href^="/members/?id="]')) {
+        const id = decodeURIComponent(row.getAttribute('href').split('=').pop());
+        const user = byId.get(id);
+        row.style.display = user && matchMember(user, query) ? '' : 'none';
+      }
+    },
+  });
 }
 
 async function showDetail(id) {

@@ -7,10 +7,23 @@ export function memberAvatar(user, cls = 'h-12 w-12') {
   return `<span class="grid ${cls} place-items-center rounded-full bg-ink-soft text-lg">${esc((user.name ?? '?')[0])}</span>`;
 }
 
-export function renderMemberList(el, users = []) {
+export function matchMember(user, query = '') {
+  const q = String(query ?? '').trim().toLowerCase();
+  if (!q) return true;
+  return `${user.name ?? ''} ${user.function ?? ''}`.toLowerCase().includes(q);
+}
+
+export function renderMemberList(el, users = [], { onSearch = null } = {}) {
   el.innerHTML = '';
+  const search = document.createElement('input');
+  search.setAttribute('data-member-search', '');
+  search.type = 'search';
+  search.placeholder = 'Search members…';
+  search.className = 'mb-4 w-full max-w-md border border-paper/20 bg-transparent p-3';
+  search.addEventListener('input', () => onSearch?.(search.value));
+  el.append(search);
   if (!users.length) {
-    el.innerHTML = '<p class="text-paper/60">No members yet.</p>';
+    el.innerHTML += '<p class="text-paper/60">No members yet.</p>';
     return;
   }
   const list = document.createElement('div');
