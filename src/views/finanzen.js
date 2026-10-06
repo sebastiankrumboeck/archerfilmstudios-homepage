@@ -149,7 +149,7 @@ export function renderInvoiceForm(el, { users = [], onCreate = null } = {}) {
         method: 'POST',
         body: JSON.stringify({ user_id: fd.get('user_id'), year: Number(fd.get('year')), amount_cents: cents, reason: fd.get('reason') || undefined }),
       });
-      onCreate?.(data.invoice);
+      onCreate?.(data.invoice, data.email);
     } catch (err) {
       form.querySelector('[data-error]').textContent = err.message;
     }

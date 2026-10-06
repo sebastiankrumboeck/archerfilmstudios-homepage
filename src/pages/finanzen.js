@@ -66,7 +66,10 @@ async function showAll(filter = {}) {
   const suffix = query.toString() ? `?${query}` : '';
   const data = await api(`/api/invoices${suffix}`);
   const { users } = await api('/api/users');
-  renderInvoiceForm(view, { users, onCreate: () => showAll(filter) });
+  renderInvoiceForm(view, { users, onCreate: (invoice, email) => {
+    if (email && !email.sent) alert(`Rechnung erstellt, aber E-Mail fehlgeschlagen: ${email.error ?? 'unbekannt'}`);
+    showAll(filter);
+  } });
   const list = document.createElement('div');
   list.className = 'mt-8';
   renderAllInvoices(list, data.invoices, {

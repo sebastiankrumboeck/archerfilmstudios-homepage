@@ -60,7 +60,7 @@ describe('finanzen views', () => {
   });
 
   it('invoice form prefills year, 12.00 and the template reason', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, data: { invoice: INV } }) });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, data: { invoice: INV, email: { sent: false, error: 'Bank details not configured.' } } }) });
     vi.stubGlobal('fetch', fetchMock);
     try {
       const el = document.createElement('div');
@@ -78,6 +78,7 @@ describe('finanzen views', () => {
       expect(opts.method).toBe('POST');
       expect(JSON.parse(opts.body)).toEqual({ user_id: 'u-2', year: new Date().getFullYear(), amount_cents: 1200, reason: `Mitgliedsbeitrag ${new Date().getFullYear()}` });
       await vi.waitFor(() => expect(onCreate).toHaveBeenCalled());
+      expect(onCreate).toHaveBeenCalledWith(INV, { sent: false, error: 'Bank details not configured.' });
     } finally {
       vi.unstubAllGlobals();
     }
