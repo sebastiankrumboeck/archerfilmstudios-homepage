@@ -525,6 +525,56 @@ app.get('/gallery/:key', async (c) => {
   return new Response(obj.body, { headers: { 'Content-Type': obj.httpMetadata?.contentType ?? 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });
 });
 
+// --- Mitschriften (meeting minutes, members read, schriftführer uploads) ---
+const MAX_MINUTES_BYTES = 10 * 1024 * 1024;
+
+async function canUploadMinutes(c) {
+  const session = c.get('session');
+  if (session.is_admin) return true;
+  const { results } = await c.env.DB.prepare("SELECT user_id FROM vorstand_links WHERE slot IN ('schriftfuehrer', 'schriftfuehrer-stellvertreter')").all();
+  return (results ?? []).some((r) => r.user_id === session.user_id);
+}
+
+app.get('/api/minutes', requireUser, async (c) => {
+  const { results } = await c.env.DB.prepare('SELECT id, title, uploaded_by, created_at FROM minutes ORDER BY created_at DESC').all();
+  return ok(c, { minutes: results ?? [], canUpload: await canUploadMinutes(c) });
+});
+
+app.post('/api/minutes', requireUser, async (c) => {
+  if (!(await canUploadMinutes(c))) return fail(c, 'Schriftführer only.', 403);
+  const title = String(c.req.query('title') ?? '').trim();
+  if (!title || title.length > 150) return fail(c, 'Title is required.', 400);
+  const contentType = c.req.header('content-type') ?? '';
+  if (!contentType.includes('application/pdf')) return fail(c, 'Only PDF.', 415);
+  const buf = await c.req.arrayBuffer();
+  if (buf.byteLength > MAX_MINUTES_BYTES) return fail(c, 'File too large (max 10MB).', 413);
+  const id = uid('min');
+  const key = `minutes/${id}.pdf`;
+  await c.env.AVATARS.put(key, buf, { httpMetadata: { contentType: 'application/pdf' } });
+  await c.env.DB.prepare('INSERT INTO minutes (id, title, r2_key, uploaded_by, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(id, title, key, c.get('session').user_id, nowISO()).run();
+  const doc = await c.env.DB.prepare('SELECT id, title, created_at FROM minutes WHERE id = ?').bind(id).first();
+  return ok(c, { minute: doc }, 201);
+});
+
+app.delete('/api/minutes/:id', requireUser, async (c) => {
+  const session = c.get('session');
+  const doc = await c.env.DB.prepare('SELECT * FROM minutes WHERE id = ?').bind(c.req.param('id')).first();
+  if (!doc) return fail(c, 'Not found.', 404);
+  if (doc.uploaded_by !== session.user_id && !session.is_admin) return fail(c, 'Not yours.', 403);
+  await c.env.AVATARS.delete(doc.r2_key);
+  await c.env.DB.prepare('DELETE FROM minutes WHERE id = ?').bind(doc.id).run();
+  return ok(c, {});
+});
+
+app.get('/api/minutes/:id/file', requireUser, async (c) => {
+  const doc = await c.env.DB.prepare('SELECT * FROM minutes WHERE id = ?').bind(c.req.param('id')).first();
+  if (!doc) return fail(c, 'Not found.', 404);
+  const obj = await c.env.AVATARS.get(doc.r2_key);
+  if (!obj) return fail(c, 'Not found.', 404);
+  return new Response(obj.body, { headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'private, max-age=3600' } });
+});
+
 app.get('/avatars/:key', async (c) => {
   const obj = await c.env.AVATARS.get(`avatars/${c.req.param('key')}`);
   if (!obj) return fail(c, 'Not found.', 404);
@@ -590,52 +640,6 @@ app.get('/posters/:key', async (c) => {
   const obj = await c.env.AVATARS.get(`posters/${c.req.param('key')}`);
   if (!obj) return fail(c, 'Not found.', 404);
   return new Response(obj.body, { headers: { 'Content-Type': obj.httpMetadata?.contentType ?? 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });
-});
-
-// --- Trial signups (Schnuppern, public form + admin list) ---
-app.post('/api/trial-signups', async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  if (body.website) return ok(c, { sent: true });
-  const name = String(body.name ?? '').trim();
-  const email = String(body.email ?? '').trim().toLowerCase();
-  const note = String(body.note ?? '').trim();
-  if (!name || name.length > 100) return fail(c, 'Please tell us your name.', 400);
-  if (!isEmail(email)) return fail(c, 'Please enter a valid email address.', 400);
-  if (note.length > 1000) return fail(c, 'Note is too long.', 400);
-  const id = uid('t');
-  await c.env.DB.prepare('INSERT INTO trial_signups (id, name, email, note, created_at, contacted) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(id, name, email, note, nowISO(), 0).run();
-  const signup = await c.env.DB.prepare('SELECT * FROM trial_signups WHERE id = ?').bind(id).first();
-  let mail = { sent: false, error: 'Email not configured.' };
-  if (c.env.RESEND_API_KEY) {
-    const text = [`Name: ${name}`, `Email: ${email}`, '', `Notiz: ${note || '–'}`].join('\n');
-    try {
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${c.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: CONTACT_FROM, to: CONTACT_TO, reply_to: email, subject: `[Schnuppern] ${name}`, text }),
-      });
-      mail = res.ok ? { sent: true } : { sent: false, error: `Email failed (${res.status}).` };
-    } catch (err) {
-      mail = { sent: false, error: err.message };
-    }
-  }
-  return ok(c, { signup: { id: signup.id, name: signup.name, email: signup.email, note: signup.note, created_at: signup.created_at, contacted: signup.contacted }, email: mail }, 201);
-});
-
-app.get('/api/trial-signups', requireAdmin, async (c) => {
-  const { results } = await c.env.DB.prepare('SELECT * FROM trial_signups ORDER BY created_at DESC').all();
-  return ok(c, { signups: results });
-});
-
-app.patch('/api/trial-signups/:id', requireAdmin, async (c) => {
-  const existing = await c.env.DB.prepare('SELECT * FROM trial_signups WHERE id = ?').bind(c.req.param('id')).first();
-  if (!existing) return fail(c, 'Not found.', 404);
-  const { contacted } = await c.req.json();
-  await c.env.DB.prepare('UPDATE trial_signups SET contacted = ? WHERE id = ?')
-    .bind(contacted ? 1 : 0, existing.id).run();
-  const signup = await c.env.DB.prepare('SELECT * FROM trial_signups WHERE id = ?').bind(existing.id).first();
-  return ok(c, { signup });
 });
 
 app.post('/api/contact', async (c) => {

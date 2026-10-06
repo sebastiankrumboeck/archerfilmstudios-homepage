@@ -1,7 +1,6 @@
 import { mountLayout } from '../layout.js';
 import { api } from '../api/client.js';
 import { renderVorstand } from '../views/vorstand.js';
-import { renderTrialList } from '../views/trials.js';
 
 await mountLayout('board');
 const view = document.querySelector('#app-view');
@@ -70,31 +69,6 @@ async function load() {
       await load();
     },
   });
-  if (me?.is_admin) {
-    const trials = document.createElement('div');
-    view.append(trials);
-    const renderTrials = async () => {
-      const { signups } = await api('/api/trial-signups');
-      renderTrialList(trials, signups, {
-        onContacted: async (signup, { contacted }) => {
-          try {
-            await api(`/api/trial-signups/${signup.id}`, { method: 'PATCH', body: JSON.stringify({ contacted }) });
-            await renderTrials();
-          } catch (err) {
-            alert(err.message);
-          }
-        },
-      });
-    };
-    try {
-      await renderTrials();
-    } catch (err) {
-      const p = document.createElement('p');
-      p.className = 'text-sm text-red-400';
-      p.textContent = err.message;
-      trials.append(p);
-    }
-  }
 }
 
 try {

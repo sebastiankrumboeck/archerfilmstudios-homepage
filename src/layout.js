@@ -9,8 +9,8 @@ const NAV = [
   ['/calendar/', 'Calendar', true],
   ['/board/', 'Board', true],
   ['/members/', 'Members', true],
+  ['/mitschriften/', 'Mitschriften', true],
   ['/finanzen/', 'Finanzen', true, 'kassier'],
-  ['/schnuppern/', 'Schnuppern', false],
   ['/contact/', 'Contact', false],
 ];
 

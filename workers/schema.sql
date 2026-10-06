@@ -77,11 +77,10 @@ CREATE TABLE project_photos (
   created_at TEXT NOT NULL
 );
 CREATE INDEX idx_photos_project ON project_photos(project_id);
-CREATE TABLE trial_signups (
+CREATE TABLE minutes (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  email TEXT NOT NULL,
-  note TEXT DEFAULT '',
-  created_at TEXT NOT NULL,
-  contacted INTEGER DEFAULT 0
+  title TEXT NOT NULL,
+  r2_key TEXT NOT NULL,
+  uploaded_by TEXT NOT NULL,
+  created_at TEXT NOT NULL
 );
