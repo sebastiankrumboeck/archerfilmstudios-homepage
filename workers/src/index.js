@@ -253,6 +253,53 @@ app.get('/api/invoices', requireKassier, async (c) => {
   return ok(c, { invoices: results.map(invoiceJson) });
 });
 
+const CSV_STATUS_DE = { open: 'Offen', paid: 'Bezahlt', cancelled: 'Storniert' };
+const CSV_METHOD_DE = { cash: 'Bar', transfer: 'Überwiesen' };
+const euroCsv = (cents) => `${(cents / 100).toFixed(2).replace('.', ',')}`;
+const csvCell = (v) => {
+  const s = String(v ?? '');
+  return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+app.get('/api/invoices/export', requireKassier, async (c) => {
+  const status = c.req.query('status');
+  const year = c.req.query('year');
+  const method = c.req.query('method');
+  let sql = 'SELECT i.*, u.name AS user_name, u.email AS user_email FROM invoices i LEFT JOIN users u ON u.id = i.user_id WHERE 1 = 1';
+  const args = [];
+  if (status) {
+    sql += ' AND i.status = ?';
+    args.push(status);
+  }
+  if (year) {
+    sql += ' AND i.year = ?';
+    args.push(Number(year));
+  }
+  if (method) {
+    if (method !== 'cash' && method !== 'transfer') return fail(c, 'Invalid method.', 400);
+    sql += ' AND i.paid_method = ?';
+    args.push(method);
+  }
+  sql += ' ORDER BY i.year DESC, i.created_at DESC';
+  const { results } = await c.env.DB.prepare(sql).bind(...args).all();
+  const lines = ['ID;Mitglied;E-Mail;Jahr;Grund;Betrag €;Status;Beleg;Referenz;Erstellt;Bezahlt am'];
+  for (const r of results ?? []) {
+    lines.push([
+      r.id, r.user_name ?? r.user_id, r.user_email ?? '', r.year, r.reason,
+      euroCsv(r.amount_cents), CSV_STATUS_DE[r.status] ?? r.status,
+      r.status === 'paid' ? (CSV_METHOD_DE[r.paid_method] ?? '') : '',
+      `${r.year}-${r.user_id}`, r.created_at, r.paid_at ?? '',
+    ].map(csvCell).join(';'));
+  }
+  const name = year ? `rechnungen-${year}.csv` : 'rechnungen-alle.csv';
+  return new Response(lines.join('\r\n'), {
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${name}"`,
+    },
+  });
+});
+
 app.get('/api/invoices/summary', requireKassier, async (c) => {
   const rawYear = c.req.query('year');
   const year = rawYear == null || rawYear === '' ? new Date().getFullYear() : Number(rawYear);

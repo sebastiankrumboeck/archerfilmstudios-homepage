@@ -62,6 +62,15 @@ describe('finanzen views', () => {
     expect(onCancel).toHaveBeenCalledWith(INV);
   });
 
+  it('export button fires onExport', () => {
+    const el = document.createElement('div');
+    const onExport = vi.fn();
+    renderAllInvoices(el, [INV], { onPay: vi.fn(), onCancel: vi.fn(), onOpen: vi.fn(), onFilter: vi.fn(), onExport });
+    expect(el.querySelector('[data-export]')).toBeTruthy();
+    el.querySelector('[data-export]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onExport).toHaveBeenCalledTimes(1);
+  });
+
   it('invoice detail shows club, holder, amount, reason, reference, no IBAN in bundle', () => {
     const el = document.createElement('div');
     renderInvoiceDetail(el, { invoice: INV, memberName: 'Mara' });

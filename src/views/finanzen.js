@@ -40,7 +40,7 @@ export function renderMyInvoices(el, invoices = [], { onOpen = null } = {}) {
   el.append(table);
 }
 
-export function renderAllInvoices(el, invoices = [], { status = '', year = '', method = '', onPay = null, onCancel = null, onOpen = null, onFilter = null } = {}) {
+export function renderAllInvoices(el, invoices = [], { status = '', year = '', method = '', onPay = null, onCancel = null, onOpen = null, onFilter = null, onExport = null } = {}) {
   el.innerHTML = '';
   const controls = document.createElement('div');
   controls.className = 'mb-4 flex flex-wrap gap-3';
@@ -60,7 +60,8 @@ export function renderAllInvoices(el, invoices = [], { status = '', year = '', m
       <select data-filter-method class="ml-2 border border-paper/20 bg-transparent p-2 text-sm">
         ${['', 'cash', 'transfer'].map((m) => `<option value="${m}"${method === m ? ' selected' : ''}>${m === '' ? 'Alle' : METHOD_DE[m]}</option>`).join('')}
       </select>
-    </label>`;
+    </label>
+    <button type="button" data-export class="border border-paper/20 px-3 py-1 text-xs uppercase">CSV exportieren</button>`;
   const readFilters = () => ({
     status: controls.querySelector('[data-filter-status]').value,
     year: controls.querySelector('[data-filter-year]').value,
@@ -69,6 +70,7 @@ export function renderAllInvoices(el, invoices = [], { status = '', year = '', m
   for (const sel of ['[data-filter-status]', '[data-filter-year]', '[data-filter-method]']) {
     controls.querySelector(sel).addEventListener('change', () => onFilter?.(readFilters()));
   }
+  controls.querySelector('[data-export]').addEventListener('click', () => onExport?.(readFilters()));
   el.append(controls);
   if (!invoices.length) {
     const p = document.createElement('p');

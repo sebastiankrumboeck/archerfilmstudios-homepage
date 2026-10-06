@@ -106,6 +106,26 @@ async function showAll(filter = {}) {
     year: filter.year ?? '',
     method: filter.method ?? '',
     onFilter: (next) => showAll(next),
+    onExport: async (filters) => {
+      try {
+        const q = new URLSearchParams();
+        if (filters.status) q.set('status', filters.status);
+        if (filters.year) q.set('year', filters.year);
+        if (filters.method) q.set('method', filters.method);
+        const res = await fetch(`/api/invoices/export${q.toString() ? `?${q}` : ''}`, { credentials: 'include' });
+        if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Fehler ${res.status}`);
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'rechnungen.csv';
+        document.body.append(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+      } catch (err) {
+        alert(err.message);
+      }
+    },
     onOpen: (inv) => {
       location.search = `?id=${encodeURIComponent(inv.id)}`;
     },
