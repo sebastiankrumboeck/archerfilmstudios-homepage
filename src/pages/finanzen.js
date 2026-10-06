@@ -54,6 +54,7 @@ async function showMine() {
 }
 
 async function showAll(filter = {}) {
+  view.innerHTML = '';
   const query = new URLSearchParams();
   if (filter.status) query.set('status', filter.status);
   if (filter.year) query.set('year', filter.year);

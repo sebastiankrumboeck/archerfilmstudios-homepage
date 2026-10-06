@@ -53,7 +53,6 @@ const json = { 'Content-Type': 'application/json' };
 const kas = { Cookie: 'app-session=s-k' };
 const mem = { Cookie: 'app-session=s-m' };
 const adm = { Cookie: 'app-session=s-a' };
-const kasEnv = (cfg) => ({ DB: fakeDb({ session: KASSIER_SESSION, ...cfg }) });
 
 describe('dues endpoints', () => {
   it('anon gets 401 on finance endpoints', async () => {
@@ -75,7 +74,14 @@ describe('dues endpoints', () => {
     expect((await res.json()).error).toBe('Kassier only.');
   });
   it('admin without flag gets 403 on kassier endpoints', async () => {
-    for (const [method, path, withBody] of [['GET', '/api/invoices', false], ['POST', '/api/invoices/generate', true], ['PATCH', '/api/invoices/i-1/pay', true]]) {
+    const cases = [
+      ['GET', '/api/invoices', false],
+      ['POST', '/api/invoices', true],
+      ['POST', '/api/invoices/generate', true],
+      ['PATCH', '/api/invoices/i-1/pay', true],
+      ['PATCH', '/api/invoices/i-1/cancel', true],
+    ];
+    for (const [method, path, withBody] of cases) {
       const res = await app.request(path, { method, headers: { ...adm, ...json }, ...(withBody ? { body: '{}' } : {}) }, { DB: fakeDb({ session: ADMIN_NOFIN }) });
       expect(res.status).toBe(403);
     }
@@ -140,28 +146,45 @@ describe('dues endpoints', () => {
       { ...MEMBER, id: 'u-has', created_at: `${thisYear - 2}-03-01T00:00:00Z` },
     ];
     const template = `Mitgliedsbeitrag ${thisYear}`;
-    const created = [];
-    const db = fakeDb({
-      session: KASSIER_SESSION,
-      users,
-      invoicesByUser: { 'u-has': [{ ...OPEN_INV, id: 'i-x', user_id: 'u-has', year: thisYear, reason: template, status: 'open' }] },
-    });
-    const origPrepare = db.prepare;
-    db.prepare = (sql) => {
-      const q = origPrepare(sql);
-      return {
-        bind: (...args) => {
-          const b = q.bind(...args);
-          return { ...b, run: async () => { if (sql.startsWith('INSERT INTO invoices')) created.push(args); return {}; } };
-        },
-        all: () => q.bind().all(),
-      };
+    const store = {
+      invoices: [{ ...OPEN_INV, id: 'i-x', user_id: 'u-has', year: thisYear, reason: template, status: 'open' }],
     };
-    const res = await app.request('/api/invoices/generate', {
+    const created = [];
+    const db = {
+      prepare: (sql) => ({
+        bind: (...args) => ({
+          first: async () => (sql.includes('FROM sessions') ? KASSIER_SESSION : null),
+          all: async () => {
+            if (sql === 'SELECT * FROM users') return { results: users };
+            if (sql.includes('FROM invoices')) {
+              return { results: store.invoices.filter((r) => r.user_id === args[0] && r.year === args[1]) };
+            }
+            return { results: [] };
+          },
+          run: async () => {
+            if (sql.startsWith('INSERT INTO invoices')) {
+              const [id, user_id, year, amount_cents, reason] = args;
+              store.invoices.push({ id, user_id, year, amount_cents, reason, status: 'open' });
+              created.push(id);
+            }
+            return {};
+          },
+        }),
+        all: async () => {
+          if (sql === 'SELECT * FROM users') return { results: users };
+          return { results: [] };
+        },
+      }),
+    };
+    const call = () => app.request('/api/invoices/generate', {
       method: 'POST', headers: { ...kas, ...json }, body: JSON.stringify({ year: thisYear }),
     }, { DB: db });
-    expect(res.status).toBe(200);
-    expect((await res.json()).data.created).toBe(1);
+    const first = await call();
+    expect(first.status).toBe(200);
+    expect((await first.json()).data.created).toBe(1);
+    const second = await call();
+    expect(second.status).toBe(200);
+    expect((await second.json()).data.created).toBe(0);
     expect(created).toHaveLength(1);
   });
   it('kassier grant as admin gives 200, as member gives 403', async () => {
