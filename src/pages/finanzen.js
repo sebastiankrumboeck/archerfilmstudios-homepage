@@ -1,6 +1,6 @@
 import { mountLayout } from '../layout.js';
 import { api } from '../api/client.js';
-import { renderAllInvoices, renderForbidden, renderInvoiceDetail, renderInvoiceForm, renderMyInvoices } from '../views/finanzen.js';
+import { renderAllInvoices, renderForbidden, renderInvoiceDetail, renderInvoiceForm, renderMyInvoices, renderOpenItems } from '../views/finanzen.js';
 
 await mountLayout('finanzen');
 const view = document.querySelector('#app-view');
@@ -71,10 +71,25 @@ async function showAll(filter = {}) {
     if (email && !email.sent) alert(`Rechnung erstellt, aber E-Mail fehlgeschlagen: ${email.error ?? 'unbekannt'}`);
     showAll(filter);
   } });
+  const openBox = document.createElement('div');
+  openBox.className = 'mt-8 border border-paper/15 p-6';
+  try {
+    const openData = await api('/api/invoices?status=open');
+    renderOpenItems(openBox, openData.invoices, {
+      onRemind: async (inv) => {
+        await api(`/api/invoices/${inv.id}/send`, { method: 'POST', body: '{}' });
+      },
+    });
+  } catch (err) {
+    const p = document.createElement('p');
+    p.className = 'text-sm text-red-400';
+    p.textContent = err.message;
+    openBox.append(p);
+  }
+  view.append(openBox);
   const list = document.createElement('div');
   list.className = 'mt-8';
-  renderAllInvoices(list, data.invoices, {
-    status: filter.status ?? '',
+  renderAllInvoices(list, data.invoices, {    status: filter.status ?? '',
     year: filter.year ?? '',
     method: filter.method ?? '',
     onFilter: (next) => showAll(next),

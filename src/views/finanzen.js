@@ -97,6 +97,53 @@ export function renderAllInvoices(el, invoices = [], { status = '', year = '', m
   el.append(table);
 }
 
+export function renderOpenItems(el, invoices = [], { onRemind = null, now = Date.now() } = {}) {
+  el.innerHTML = '';
+  const heading = document.createElement('h3');
+  heading.className = 'font-display text-xl uppercase';
+  heading.textContent = 'Offene Posten';
+  el.append(heading);
+  const open = invoices
+    .filter((inv) => inv.status === 'open')
+    .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
+  if (!open.length) {
+    const p = document.createElement('p');
+    p.className = 'mt-2 text-sm text-paper/60';
+    p.textContent = 'Keine offenen Rechnungen. ✓';
+    el.append(p);
+    return;
+  }
+  const list = document.createElement('div');
+  list.className = 'mt-4 grid gap-3';
+  for (const inv of open) {
+    const days = Math.max(0, Math.floor((now - Date.parse(inv.created_at)) / 86400000));
+    const row = document.createElement('div');
+    row.setAttribute('data-invoice', inv.id);
+    row.className = 'flex flex-wrap items-center gap-3 border border-paper/15 p-3 text-sm';
+    row.innerHTML = `
+      <span class="font-semibold">${esc(inv.user_name ?? inv.user_id)} — ${esc(inv.reason)} (${esc(String(inv.year))})</span>
+      <span class="font-semibold">${esc(formatEuro(inv.amount_cents))}</span>
+      <span class="text-xs uppercase tracking-widest text-paper/60">seit ${days} Tagen offen</span>
+      <button type="button" data-remind class="border border-amber px-3 py-1 text-xs uppercase">Erinnerung senden</button>
+      <p data-status class="w-full text-sm text-paper/60"></p>`;
+    row.querySelector('[data-remind]').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const status = row.querySelector('[data-status]');
+      btn.disabled = true;
+      try {
+        await onRemind?.(inv);
+        status.textContent = 'Erinnerung gesendet ✓';
+      } catch (err) {
+        status.textContent = err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    list.append(row);
+  }
+  el.append(list);
+}
+
 export function renderInvoiceDetail(el, { invoice, memberName }, { canSend = false, onSend = null } = {}) {
   el.innerHTML = '';
   if (!invoice) {
