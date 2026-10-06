@@ -60,7 +60,9 @@ CREATE TABLE invoices (
   created_at TEXT NOT NULL,
   paid_at TEXT,
   paid_method TEXT,
-  marked_by TEXT
+  marked_by TEXT,
+  credit_of TEXT,
+  corrected_by TEXT
 );
 CREATE INDEX idx_invoices_user ON invoices(user_id);
 CREATE TABLE reminder_log (

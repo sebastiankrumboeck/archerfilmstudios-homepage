@@ -71,6 +71,20 @@ describe('finanzen views', () => {
     expect(onExport).toHaveBeenCalledTimes(1);
   });
 
+  it('correct button reveals a prefilled form that submits amount and reason', async () => {
+    const el = document.createElement('div');
+    const onCorrect = vi.fn();
+    renderAllInvoices(el, [INV], { onPay: vi.fn(), onCancel: vi.fn(), onOpen: vi.fn(), onFilter: vi.fn(), onCorrect });
+    expect(el.querySelector('[data-correct-form]')).toBeNull();
+    el.querySelector('[data-correct]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const form = el.querySelector('[data-correct-form]');
+    expect(form).toBeTruthy();
+    expect(form.querySelector('[name="reason"]').value).toBe('Mitgliedsbeitrag 2026');
+    form.querySelector('[name="amount"]').value = '10.00';
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(onCorrect).toHaveBeenCalledWith(INV, { amount_cents: 1000, reason: 'Mitgliedsbeitrag 2026' }));
+  });
+
   it('invoice detail shows club, holder, amount, reason, reference, no IBAN in bundle', () => {
     const el = document.createElement('div');
     renderInvoiceDetail(el, { invoice: INV, memberName: 'Mara' });

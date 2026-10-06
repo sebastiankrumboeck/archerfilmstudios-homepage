@@ -146,6 +146,15 @@ async function showAll(filter = {}) {
         alert(err.message);
       }
     },
+    onCorrect: async (inv, { amount_cents, reason }) => {
+      try {
+        const data = await api(`/api/invoices/${inv.id}/correct`, { method: 'POST', body: JSON.stringify({ amount_cents, reason }) });
+        if (data.email && !data.email.sent) alert(`Korrigiert, aber E-Mail fehlgeschlagen: ${data.email.error ?? 'unbekannt'}`);
+        await showAll(filter);
+      } catch (err) {
+        alert(err.message);
+      }
+    },
   });
   view.append(list);
   const gen = document.createElement('div');

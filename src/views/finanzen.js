@@ -40,7 +40,7 @@ export function renderMyInvoices(el, invoices = [], { onOpen = null } = {}) {
   el.append(table);
 }
 
-export function renderAllInvoices(el, invoices = [], { status = '', year = '', method = '', onPay = null, onCancel = null, onOpen = null, onFilter = null, onExport = null } = {}) {
+export function renderAllInvoices(el, invoices = [], { status = '', year = '', method = '', onPay = null, onCancel = null, onOpen = null, onFilter = null, onExport = null, onCorrect = null } = {}) {
   el.innerHTML = '';
   const controls = document.createElement('div');
   controls.className = 'mb-4 flex flex-wrap gap-3';
@@ -89,11 +89,35 @@ export function renderAllInvoices(el, invoices = [], { status = '', year = '', m
       <span class="font-semibold">${esc(formatEuro(inv.amount_cents))}</span>
       <span class="text-xs uppercase tracking-widest text-paper/60">${esc(STATUS_DE[inv.status] ?? inv.status)}</span>
       <span class="text-xs uppercase tracking-widest text-paper/60">${esc(inv.status === 'paid' ? (METHOD_DE[inv.paid_method] ?? inv.paid_method ?? '—') : '—')}</span>
-      ${inv.status === 'open' ? '<button type="button" data-pay-cash class="border border-amber px-3 py-1 text-xs uppercase">Bar bezahlt</button><button type="button" data-pay-transfer class="border border-amber px-3 py-1 text-xs uppercase">Überwiesen</button><button type="button" data-cancel class="border border-paper/20 px-3 py-1 text-xs uppercase">Stornieren</button>' : ''}`;
+      ${inv.corrected_by ? `<a class="text-xs text-amber" href="/finanzen/?id=${encodeURIComponent(inv.corrected_by)}">Korrigiert → ${esc(String(inv.corrected_by).slice(0, 8))}</a>` : ''}
+      ${inv.credit_of ? `<a class="text-xs text-amber" href="/finanzen/?id=${encodeURIComponent(inv.credit_of)}">Korrektur von ${esc(String(inv.credit_of).slice(0, 8))}</a>` : ''}
+      ${inv.status === 'open' ? '<button type="button" data-pay-cash class="border border-amber px-3 py-1 text-xs uppercase">Bar bezahlt</button><button type="button" data-pay-transfer class="border border-amber px-3 py-1 text-xs uppercase">Überwiesen</button><button type="button" data-cancel class="border border-paper/20 px-3 py-1 text-xs uppercase">Stornieren</button><button type="button" data-correct class="border border-paper/20 px-3 py-1 text-xs uppercase">Korrigieren</button>' : ''}`;
     row.querySelector('[data-open]')?.addEventListener('click', () => onOpen?.(inv));
     row.querySelector('[data-pay-cash]')?.addEventListener('click', () => onPay?.(inv, 'cash'));
     row.querySelector('[data-pay-transfer]')?.addEventListener('click', () => onPay?.(inv, 'transfer'));
     row.querySelector('[data-cancel]')?.addEventListener('click', () => onCancel?.(inv));
+    row.querySelector('[data-correct]')?.addEventListener('click', () => {
+      row.querySelector('[data-correct-form]')?.remove();
+      const form = document.createElement('form');
+      form.setAttribute('data-correct-form', '');
+      form.className = 'flex w-full flex-wrap items-center gap-2';
+      form.innerHTML = `
+        <label class="text-xs uppercase text-paper/60">Betrag (€) <input name="amount" value="${(inv.amount_cents / 100).toFixed(2)}" class="ml-1 border border-paper/20 bg-transparent p-2 text-sm" /></label>
+        <label class="text-xs uppercase text-paper/60">Grund <input name="reason" value="${esc(inv.reason)}" class="ml-1 border border-paper/20 bg-transparent p-2 text-sm" /></label>
+        <p data-error class="w-full text-sm text-red-400"></p>
+        <button class="border border-amber px-3 py-1 text-xs uppercase">Korrigieren</button>`;
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const cents = euroToCents(fd.get('amount'));
+        if (!Number.isInteger(cents) || cents < 1) {
+          form.querySelector('[data-error]').textContent = 'Invalid amount.';
+          return;
+        }
+        onCorrect?.(inv, { amount_cents: cents, reason: String(fd.get('reason') ?? '') });
+      });
+      row.append(form);
+    });
     table.append(row);
   }
   el.append(table);

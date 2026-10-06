@@ -221,7 +221,7 @@ function validateInvoice(body) {
   return { year, amount_cents, reason: body.reason?.trim() || yearlyReason(year) };
 }
 
-const invoiceJson = (r) => ({ id: r.id, user_id: r.user_id, user_name: r.user_name ?? null, year: r.year, amount_cents: r.amount_cents, reason: r.reason, status: r.status, created_at: r.created_at, paid_at: r.paid_at ?? null, paid_method: r.paid_method ?? null });
+const invoiceJson = (r) => ({ id: r.id, user_id: r.user_id, user_name: r.user_name ?? null, year: r.year, amount_cents: r.amount_cents, reason: r.reason, status: r.status, created_at: r.created_at, paid_at: r.paid_at ?? null, paid_method: r.paid_method ?? null, credit_of: r.credit_of ?? null, corrected_by: r.corrected_by ?? null });
 
 app.get('/api/invoices/me', requireUser, async (c) => {
   const session = c.get('session');
@@ -379,6 +379,29 @@ app.patch('/api/invoices/:id/pay', requireKassier, async (c) => {
   await c.env.DB.prepare('UPDATE invoices SET status = ?, paid_at = ?, paid_method = ?, marked_by = ? WHERE id = ?')
     .bind('paid', nowISO(), method, session.user_id, inv.id).run();
   return ok(c, {});
+});
+
+app.post('/api/invoices/:id/correct', requireKassier, async (c) => {
+  const session = c.get('session');
+  const orig = await c.env.DB.prepare('SELECT * FROM invoices WHERE id = ?').bind(c.req.param('id')).first();
+  if (!orig) return fail(c, 'Not found.', 404);
+  if (orig.status !== 'open') return fail(c, 'Nur offene Rechnungen können korrigiert werden.', 409);
+  const body = await c.req.json();
+  const amount_cents = body.amount_cents ?? orig.amount_cents;
+  if (!Number.isInteger(amount_cents) || amount_cents < 1) return fail(c, 'Invalid amount.', 400);
+  if (body.reason != null && !String(body.reason).trim()) return fail(c, 'Reason is required.', 400);
+  const reason = body.reason?.trim() || orig.reason;
+  const id = uid('inv');
+  await c.env.DB.prepare('INSERT INTO invoices (id, user_id, year, amount_cents, reason, status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, orig.user_id, orig.year, amount_cents, reason, 'open', session.user_id, nowISO()).run();
+  await c.env.DB.prepare('UPDATE invoices SET credit_of = ? WHERE id = ?').bind(orig.id, id).run();
+  await c.env.DB.prepare('UPDATE invoices SET status = ? WHERE id = ?').bind('cancelled', orig.id).run();
+  await c.env.DB.prepare('UPDATE invoices SET corrected_by = ? WHERE id = ?').bind(id, orig.id).run();
+  const row = await c.env.DB.prepare('SELECT * FROM invoices WHERE id = ?').bind(id).first();
+  const invoice = invoiceJson(row);
+  const user = await c.env.DB.prepare('SELECT id, email, name FROM users WHERE id = ?').bind(orig.user_id).first();
+  const email = await sendInvoiceEmail(c.env, { to: user.email, invoice, memberName: user.name });
+  return ok(c, { invoice, email: { sent: email.ok, ...(email.ok ? {} : { error: email.error }) } }, 201);
 });
 
 app.patch('/api/invoices/:id/cancel', requireKassier, async (c) => {
