@@ -8,8 +8,28 @@ const json = { 'Content-Type': 'application/json' };
 const OPEN = { id: 'inv-1', user_id: 'u-2', year: 2026, amount_cents: 1200, reason: 'Mitgliedsbeitrag 2026', status: 'open', created_by: 'u-kas', created_at: '2026-01-05T00:00:00Z', paid_at: null, paid_method: null, marked_by: null, credit_of: null, corrected_by: null };
 const MEMBER_USER = { id: 'u-2', email: 'm@x.at', name: 'Mara' };
 
-function statefulDb({ invoices = [OPEN], runLog = null } = {}) {
+function statefulDb({ invoices = [OPEN], runLog = null, memberUser = MEMBER_USER, batchLog = null } = {}) {
   const store = { invoices: invoices.map((r) => ({ ...r })) };
+  const exec = (sql, args) => {
+    runLog?.(sql, args);
+    if (sql.startsWith('INSERT INTO invoices')) {
+      const [id, user_id, year, amount_cents, reason, status, created_by, created_at] = args;
+      store.invoices.push({ id, user_id, year, amount_cents, reason, status, created_by, created_at, paid_at: null, paid_method: null, marked_by: null, credit_of: null, corrected_by: null });
+    }
+    if (sql.startsWith('UPDATE invoices SET status')) {
+      const row = store.invoices.find((r) => r.id === args[1]);
+      if (row) row.status = args[0];
+    }
+    if (sql.startsWith('UPDATE invoices SET corrected_by')) {
+      const row = store.invoices.find((r) => r.id === args[1]);
+      if (row) row.corrected_by = args[0];
+    }
+    if (sql.startsWith('UPDATE invoices SET credit_of')) {
+      const row = store.invoices.find((r) => r.id === args[1]);
+      if (row) row.credit_of = args[0];
+    }
+    return {};
+  };
   return {
     store,
     db: {
@@ -20,32 +40,19 @@ function statefulDb({ invoices = [OPEN], runLog = null } = {}) {
             if (sql.includes('FROM invoices') && sql.includes('id = ?')) {
               return store.invoices.find((r) => r.id === args[0]) ?? null;
             }
-            if (sql.includes('FROM users')) return MEMBER_USER;
+            if (sql.includes('FROM users')) return memberUser;
             return null;
           },
           all: async () => ({ results: [] }),
-          run: async () => {
-            runLog?.(sql, args);
-            if (sql.startsWith('INSERT INTO invoices')) {
-              const [id, user_id, year, amount_cents, reason, status, created_by, created_at] = args;
-              store.invoices.push({ id, user_id, year, amount_cents, reason, status, created_by, created_at, paid_at: null, paid_method: null, marked_by: null, credit_of: null, corrected_by: null });
-            }
-            if (sql.startsWith('UPDATE invoices SET status')) {
-              const row = store.invoices.find((r) => r.id === args[1]);
-              if (row) row.status = args[0];
-            }
-            if (sql.startsWith('UPDATE invoices SET corrected_by')) {
-              const row = store.invoices.find((r) => r.id === args[1]);
-              if (row) row.corrected_by = args[0];
-            }
-            if (sql.startsWith('UPDATE invoices SET credit_of')) {
-              const row = store.invoices.find((r) => r.id === args[1]);
-              if (row) row.credit_of = args[0];
-            }
-            return {};
-          },
+          run: async () => exec(sql, args),
         }),
       }),
+      batch: async (stmts) => {
+        batchLog?.(stmts);
+        const out = [];
+        for (const s of stmts) out.push(await s.run());
+        return out;
+      },
     },
   };
 }
@@ -112,8 +119,7 @@ describe('invoice corrections', () => {
     expect(bad.status).toBe(400);
   });
 
-  it('mail failure still creates the linked pair', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) }));
+  it('mail failure still creates the linked pair', async () => {    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) }));
     const { store, db } = statefulDb();
     try {
       const res = await app.request('/api/invoices/inv-1/correct', {
@@ -122,6 +128,37 @@ describe('invoice corrections', () => {
       expect(res.status).toBe(201);
       expect((await res.json()).data.email.sent).toBe(false);
       expect(store.invoices.find((r) => r.id === 'inv-1').status).toBe('cancelled');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('unknown member gives 400 without touching the invoice', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    const { store, db } = statefulDb({ memberUser: null });
+    try {
+      const res = await app.request('/api/invoices/inv-1/correct', {
+        method: 'POST', headers: { ...kas, ...json }, body: JSON.stringify({}),
+      }, { DB: db, ...ENV });
+      expect(res.status).toBe(400);
+      expect(store.invoices).toHaveLength(1);
+      expect(store.invoices[0].status).toBe('open');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('correction writes run as one batch', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ id: 'mail-1' }) }));
+    const batches = [];
+    const { db } = statefulDb({ batchLog: (stmts) => batches.push(stmts) });
+    try {
+      const res = await app.request('/api/invoices/inv-1/correct', {
+        method: 'POST', headers: { ...kas, ...json }, body: JSON.stringify({}),
+      }, { DB: db, ...ENV });
+      expect(res.status).toBe(201);
+      expect(batches).toHaveLength(1);
+      expect(batches[0]).toHaveLength(4);
     } finally {
       vi.unstubAllGlobals();
     }

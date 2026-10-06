@@ -391,15 +391,18 @@ app.post('/api/invoices/:id/correct', requireKassier, async (c) => {
   if (!Number.isInteger(amount_cents) || amount_cents < 1) return fail(c, 'Invalid amount.', 400);
   if (body.reason != null && !String(body.reason).trim()) return fail(c, 'Reason is required.', 400);
   const reason = body.reason?.trim() || orig.reason;
+  const user = await c.env.DB.prepare('SELECT id, email, name FROM users WHERE id = ?').bind(orig.user_id).first();
+  if (!user) return fail(c, 'Unknown member.', 400);
   const id = uid('inv');
-  await c.env.DB.prepare('INSERT INTO invoices (id, user_id, year, amount_cents, reason, status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, orig.user_id, orig.year, amount_cents, reason, 'open', session.user_id, nowISO()).run();
-  await c.env.DB.prepare('UPDATE invoices SET credit_of = ? WHERE id = ?').bind(orig.id, id).run();
-  await c.env.DB.prepare('UPDATE invoices SET status = ? WHERE id = ?').bind('cancelled', orig.id).run();
-  await c.env.DB.prepare('UPDATE invoices SET corrected_by = ? WHERE id = ?').bind(id, orig.id).run();
+  await c.env.DB.batch([
+    c.env.DB.prepare('INSERT INTO invoices (id, user_id, year, amount_cents, reason, status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, orig.user_id, orig.year, amount_cents, reason, 'open', session.user_id, nowISO()),
+    c.env.DB.prepare('UPDATE invoices SET credit_of = ? WHERE id = ?').bind(orig.id, id),
+    c.env.DB.prepare('UPDATE invoices SET status = ? WHERE id = ?').bind('cancelled', orig.id),
+    c.env.DB.prepare('UPDATE invoices SET corrected_by = ? WHERE id = ?').bind(id, orig.id),
+  ]);
   const row = await c.env.DB.prepare('SELECT * FROM invoices WHERE id = ?').bind(id).first();
   const invoice = invoiceJson(row);
-  const user = await c.env.DB.prepare('SELECT id, email, name FROM users WHERE id = ?').bind(orig.user_id).first();
   const email = await sendInvoiceEmail(c.env, { to: user.email, invoice, memberName: user.name });
   return ok(c, { invoice, email: { sent: email.ok, ...(email.ok ? {} : { error: email.error }) } }, 201);
 });
