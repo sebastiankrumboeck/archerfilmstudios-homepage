@@ -21,8 +21,9 @@ export function renderCalendar(el, year, month1, projects, { onMonth = null } = 
     for (const p of projects) {
       const span = monthSpan(p.start_at, p.end_at, year, month1);
       if (span && d >= span.startDay && d < span.startDay + span.span) {
-        const bar = document.createElement('div');
-        bar.className = 'mt-1 truncate px-1 py-0.5 text-[11px]';
+        const bar = document.createElement('a');
+        bar.href = `/projects/?id=${encodeURIComponent(p.id)}`;
+        bar.className = 'mt-1 block truncate px-1 py-0.5 text-[11px] hover:underline';
         bar.style.background = intensityColor(p.intensity);
         bar.style.color = '#151412';
         bar.title = `${p.title} (${p.start_at} → ${p.end_at})`;

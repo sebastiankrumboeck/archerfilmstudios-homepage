@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { intensityColor } from '../src/lib/intensity.js';
 import { buildMailto, monthSpan } from '../src/lib/calendar.js';
 import { renderProjectCard, renderProjectDetail, renderProjectForm } from '../src/views/projects.js';
+import { renderCalendar } from '../src/views/calendar.js';
 
 const PROJECT = { id: 'p1', title: 'Shoot', description: 'Desc', intensity: 4, location: 'Berlin', start_at: '2026-11-08T18:00:00Z', end_at: '2026-11-08T22:00:00Z', max_members: 8, member_count: 3, members: [] };
 const ALICE = { id: 'u-1', name: 'Alice', function: 'Camera', avatar_r2_key: null, is_admin: false, is_vorstand: false, vorstand_title: null };
@@ -39,6 +40,14 @@ describe('views', () => {
 
   it('calendar bar spans start to end days', () => {
     expect(monthSpan('2026-10-05T10:00:00Z', '2026-10-07T12:00:00Z', 2026, 10)).toEqual({ startDay: 5, span: 3 });
+  });
+
+  it('calendar bars link to the project detail page', () => {
+    const el = document.createElement('div');
+    renderCalendar(el, 2026, 11, [{ ...PROJECT, start_at: '2026-11-08T18:00:00Z', end_at: '2026-11-08T22:00:00Z' }], {});
+    const bar = el.querySelector('a[href="/projects/?id=p1"]');
+    expect(bar).toBeTruthy();
+    expect(bar.textContent).toContain('Shoot');
   });
 
   it('admin edit button fires onEdit with the project', () => {
