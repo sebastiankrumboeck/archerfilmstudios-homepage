@@ -63,6 +63,7 @@ async function showAll(filter = {}) {
   const query = new URLSearchParams();
   if (filter.status) query.set('status', filter.status);
   if (filter.year) query.set('year', filter.year);
+  if (filter.method) query.set('method', filter.method);
   const suffix = query.toString() ? `?${query}` : '';
   const data = await api(`/api/invoices${suffix}`);
   const { users } = await api('/api/users');
@@ -75,6 +76,7 @@ async function showAll(filter = {}) {
   renderAllInvoices(list, data.invoices, {
     status: filter.status ?? '',
     year: filter.year ?? '',
+    method: filter.method ?? '',
     onFilter: (next) => showAll(next),
     onOpen: (inv) => {
       location.search = `?id=${encodeURIComponent(inv.id)}`;

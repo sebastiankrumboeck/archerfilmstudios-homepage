@@ -14,6 +14,7 @@ export function euroToCents(value) {
 }
 
 const STATUS_DE = { open: 'Offen', paid: 'Bezahlt', cancelled: 'Storniert' };
+const METHOD_DE = { cash: 'Bar', transfer: 'Überwiesen' };
 
 export function renderMyInvoices(el, invoices = [], { onOpen = null } = {}) {
   el.innerHTML = '';
@@ -39,7 +40,7 @@ export function renderMyInvoices(el, invoices = [], { onOpen = null } = {}) {
   el.append(table);
 }
 
-export function renderAllInvoices(el, invoices = [], { status = '', year = '', onPay = null, onCancel = null, onOpen = null, onFilter = null } = {}) {
+export function renderAllInvoices(el, invoices = [], { status = '', year = '', method = '', onPay = null, onCancel = null, onOpen = null, onFilter = null } = {}) {
   el.innerHTML = '';
   const controls = document.createElement('div');
   controls.className = 'mb-4 flex flex-wrap gap-3';
@@ -54,9 +55,20 @@ export function renderAllInvoices(el, invoices = [], { status = '', year = '', o
         <option value="">Alle</option>
         ${[0, 1, 2].map((d) => { const y = new Date().getFullYear() - d; return `<option value="${y}"${String(year) === String(y) ? ' selected' : ''}>${y}</option>`; }).join('')}
       </select>
+    </label>
+    <label class="text-xs uppercase text-paper/60">Zahlungsart
+      <select data-filter-method class="ml-2 border border-paper/20 bg-transparent p-2 text-sm">
+        ${['', 'cash', 'transfer'].map((m) => `<option value="${m}"${method === m ? ' selected' : ''}>${m === '' ? 'Alle' : METHOD_DE[m]}</option>`).join('')}
+      </select>
     </label>`;
-  controls.querySelector('[data-filter-status]').addEventListener('change', (e) => onFilter?.({ status: e.target.value, year: controls.querySelector('[data-filter-year]').value }));
-  controls.querySelector('[data-filter-year]').addEventListener('change', (e) => onFilter?.({ status: controls.querySelector('[data-filter-status]').value, year: e.target.value }));
+  const readFilters = () => ({
+    status: controls.querySelector('[data-filter-status]').value,
+    year: controls.querySelector('[data-filter-year]').value,
+    method: controls.querySelector('[data-filter-method]').value,
+  });
+  for (const sel of ['[data-filter-status]', '[data-filter-year]', '[data-filter-method]']) {
+    controls.querySelector(sel).addEventListener('change', () => onFilter?.(readFilters()));
+  }
   el.append(controls);
   if (!invoices.length) {
     const p = document.createElement('p');
@@ -74,6 +86,7 @@ export function renderAllInvoices(el, invoices = [], { status = '', year = '', o
       <button type="button" data-open class="font-semibold hover:text-amber">${esc(inv.user_name ?? inv.user_id)} — ${esc(inv.reason)} (${esc(String(inv.year))})</button>
       <span class="font-semibold">${esc(formatEuro(inv.amount_cents))}</span>
       <span class="text-xs uppercase tracking-widest text-paper/60">${esc(STATUS_DE[inv.status] ?? inv.status)}</span>
+      <span class="text-xs uppercase tracking-widest text-paper/60">${esc(inv.status === 'paid' ? (METHOD_DE[inv.paid_method] ?? inv.paid_method ?? '—') : '—')}</span>
       ${inv.status === 'open' ? '<button type="button" data-pay-cash class="border border-amber px-3 py-1 text-xs uppercase">Bar bezahlt</button><button type="button" data-pay-transfer class="border border-amber px-3 py-1 text-xs uppercase">Überwiesen</button><button type="button" data-cancel class="border border-paper/20 px-3 py-1 text-xs uppercase">Stornieren</button>' : ''}`;
     row.querySelector('[data-open]')?.addEventListener('click', () => onOpen?.(inv));
     row.querySelector('[data-pay-cash]')?.addEventListener('click', () => onPay?.(inv, 'cash'));

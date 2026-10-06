@@ -187,6 +187,27 @@ describe('dues endpoints', () => {
     expect((await second.json()).data.created).toBe(0);
     expect(created).toHaveLength(1);
   });
+  it('kassier can filter invoices by payment method', async () => {
+    let seen = null;
+    const db = fakeDb({ session: KASSIER_SESSION, invoices: [OPEN_INV, PAID_INV] });
+    const orig = db.prepare;
+    db.prepare = (sql) => {
+      const q = orig(sql);
+      return {
+        bind: (...args) => {
+          if (sql.includes('FROM invoices')) seen = { sql, args };
+          return q.bind(...args);
+        },
+        all: () => q.all(),
+      };
+    };
+    const res = await app.request('/api/invoices?method=cash', { headers: kas }, { DB: db });
+    expect(res.status).toBe(200);
+    expect(seen.sql).toContain('paid_method');
+    expect(seen.args).toContain('cash');
+    const bad = await app.request('/api/invoices?method=bitcoin', { headers: kas }, { DB: fakeDb({ session: KASSIER_SESSION }) });
+    expect(bad.status).toBe(400);
+  });
   it('kassier grant as admin gives 200, as member gives 403', async () => {
     const okRes = await app.request('/api/users/u-2/kassier', {
       method: 'PATCH', headers: { ...adm, ...json }, body: JSON.stringify({ is_kassier: 1 }),

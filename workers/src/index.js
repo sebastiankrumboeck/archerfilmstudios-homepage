@@ -230,6 +230,7 @@ app.get('/api/invoices/me', requireUser, async (c) => {
 app.get('/api/invoices', requireKassier, async (c) => {
   const status = c.req.query('status');
   const year = c.req.query('year');
+  const method = c.req.query('method');
   let sql = 'SELECT i.*, u.name AS user_name FROM invoices i LEFT JOIN users u ON u.id = i.user_id WHERE 1 = 1';
   const args = [];
   if (status) {
@@ -239,6 +240,11 @@ app.get('/api/invoices', requireKassier, async (c) => {
   if (year) {
     sql += ' AND i.year = ?';
     args.push(Number(year));
+  }
+  if (method) {
+    if (method !== 'cash' && method !== 'transfer') return fail(c, 'Invalid method.', 400);
+    sql += ' AND i.paid_method = ?';
+    args.push(method);
   }
   sql += ' ORDER BY i.year DESC, i.created_at DESC';
   const { results } = await c.env.DB.prepare(sql).bind(...args).all();

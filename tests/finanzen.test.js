@@ -34,6 +34,21 @@ describe('finanzen views', () => {
     expect(el.querySelector('select[data-filter-year]')).toBeTruthy();
   });
 
+  it('all invoices show the payment method plus a method filter', () => {
+    const el = document.createElement('div');
+    const onFilter = vi.fn();
+    const paidCash = { ...INV, id: 'i-cash', status: 'paid', paid_method: 'cash' };
+    const paidTransfer = { ...INV, id: 'i-tr', status: 'paid', paid_method: 'transfer' };
+    renderAllInvoices(el, [paidCash, paidTransfer, INV], { onPay: vi.fn(), onCancel: vi.fn(), onOpen: vi.fn(), onFilter });
+    expect(el.textContent).toContain('Bar');
+    expect(el.textContent).toContain('Überwiesen');
+    const methodSelect = el.querySelector('select[data-filter-method]');
+    expect(methodSelect).toBeTruthy();
+    methodSelect.value = 'cash';
+    methodSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(onFilter).toHaveBeenCalledWith({ status: '', year: '', method: 'cash' });
+  });
+
   it('pay and cancel buttons fire with the invoice', () => {
     const el = document.createElement('div');
     const onPay = vi.fn();
