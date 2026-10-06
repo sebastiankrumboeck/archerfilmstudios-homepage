@@ -4,6 +4,27 @@ import { hashPassword, verifyPassword, uid, nowISO, getSessionUser, requireUser,
 
 const app = new Hono();
 
+// Redirect plain HTTP to HTTPS (308 preserves method+body). Loop-safe:
+// skips local dev, and trusts proxy scheme headers for Flexible-TLS setups.
+app.use(async (c, next) => {
+  const url = new URL(c.req.url);
+  const isLocal = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  let scheme = url.protocol.replace(':', '');
+  try {
+    const visitor = JSON.parse(c.req.header('cf-visitor') ?? '{}');
+    if (visitor.scheme) scheme = visitor.scheme;
+  } catch {
+    // keep URL scheme
+  }
+  const forwarded = c.req.header('x-forwarded-proto');
+  if (forwarded) scheme = forwarded.split(',')[0].trim().toLowerCase();
+  if (!isLocal && scheme === 'http') {
+    url.protocol = 'https:';
+    return c.redirect(url.toString(), 308);
+  }
+  await next();
+});
+
 const ok = (c, data, status = 200) => c.json({ ok: true, data }, status);
 const fail = (c, error, status = 400) => c.json({ ok: false, error }, status);
 const isEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e ?? '');
