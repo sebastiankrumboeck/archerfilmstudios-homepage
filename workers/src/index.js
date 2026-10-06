@@ -591,6 +591,52 @@ app.get('/posters/:key', async (c) => {
   return new Response(obj.body, { headers: { 'Content-Type': obj.httpMetadata?.contentType ?? 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });
 });
 
+// --- Trial signups (Schnuppern, public form + admin list) ---
+app.post('/api/trial-signups', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  if (body.website) return ok(c, { sent: true });
+  const name = String(body.name ?? '').trim();
+  const email = String(body.email ?? '').trim().toLowerCase();
+  const note = String(body.note ?? '').trim();
+  if (!name || name.length > 100) return fail(c, 'Please tell us your name.', 400);
+  if (!isEmail(email)) return fail(c, 'Please enter a valid email address.', 400);
+  if (note.length > 1000) return fail(c, 'Note is too long.', 400);
+  const id = uid('t');
+  await c.env.DB.prepare('INSERT INTO trial_signups (id, name, email, note, created_at, contacted) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(id, name, email, note, nowISO(), 0).run();
+  const signup = await c.env.DB.prepare('SELECT * FROM trial_signups WHERE id = ?').bind(id).first();
+  let mail = { sent: false, error: 'Email not configured.' };
+  if (c.env.RESEND_API_KEY) {
+    const text = [`Name: ${name}`, `Email: ${email}`, '', `Notiz: ${note || '–'}`].join('\n');
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${c.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: CONTACT_FROM, to: CONTACT_TO, reply_to: email, subject: `[Schnuppern] ${name}`, text }),
+      });
+      mail = res.ok ? { sent: true } : { sent: false, error: `Email failed (${res.status}).` };
+    } catch (err) {
+      mail = { sent: false, error: err.message };
+    }
+  }
+  return ok(c, { signup: { id: signup.id, name: signup.name, email: signup.email, note: signup.note, created_at: signup.created_at, contacted: signup.contacted }, email: mail }, 201);
+});
+
+app.get('/api/trial-signups', requireAdmin, async (c) => {
+  const { results } = await c.env.DB.prepare('SELECT * FROM trial_signups ORDER BY created_at DESC').all();
+  return ok(c, { signups: results });
+});
+
+app.patch('/api/trial-signups/:id', requireAdmin, async (c) => {
+  const existing = await c.env.DB.prepare('SELECT * FROM trial_signups WHERE id = ?').bind(c.req.param('id')).first();
+  if (!existing) return fail(c, 'Not found.', 404);
+  const { contacted } = await c.req.json();
+  await c.env.DB.prepare('UPDATE trial_signups SET contacted = ? WHERE id = ?')
+    .bind(contacted ? 1 : 0, existing.id).run();
+  const signup = await c.env.DB.prepare('SELECT * FROM trial_signups WHERE id = ?').bind(existing.id).first();
+  return ok(c, { signup });
+});
+
 app.post('/api/contact', async (c) => {
   const body = await c.req.json().catch(() => ({}));
   if (body.website) return ok(c, { sent: true });
