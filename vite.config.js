@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const pages = ['projects', 'calendar', 'board', 'contact', 'login', 'register', 'impressum', 'members'];
+const pages = ['projects', 'calendar', 'board', 'contact', 'login', 'register', 'impressum', 'members', 'films'];
 
 export default defineConfig({
   plugins: [tailwindcss()],

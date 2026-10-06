@@ -40,3 +40,10 @@ CREATE TABLE vorstand_links (
   slot TEXT PRIMARY KEY,
   user_id TEXT NOT NULL
 );
+CREATE TABLE films (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  poster_r2_key TEXT,
+  url TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);

@@ -4,6 +4,7 @@ import { SOCIALS } from './data/socials.js';
 
 const NAV = [
   ['/', 'Home', false],
+  ['/films/', 'Films', false],
   ['/projects/', 'Projects', true],
   ['/calendar/', 'Calendar', true],
   ['/board/', 'Board', true],

@@ -301,6 +301,67 @@ app.get('/avatars/:key', async (c) => {
   return new Response(obj.body, { headers: { 'Content-Type': obj.httpMetadata?.contentType ?? 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });
 });
 
+// --- Produced films (public listing, admin-managed) ---
+export function validateFilm(f) {
+  if (!f.title?.trim()) return 'Title is required.';
+  if (!/^https?:\/\/.+\..+/.test(f.url ?? '')) return 'Film website URL must start with http(s).';
+  return null;
+}
+
+app.get('/api/films', async (c) => {
+  const { results } = await c.env.DB.prepare('SELECT * FROM films ORDER BY created_at').all();
+  return ok(c, { films: results });
+});
+
+app.post('/api/films', requireAdmin, async (c) => {
+  const body = await c.req.json();
+  const err = validateFilm(body);
+  if (err) return fail(c, err, 400);
+  const id = uid('f');
+  await c.env.DB.prepare('INSERT INTO films (id, title, poster_r2_key, url, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(id, body.title.trim(), null, body.url.trim(), nowISO()).run();
+  const film = await c.env.DB.prepare('SELECT * FROM films WHERE id = ?').bind(id).first();
+  return ok(c, { film }, 201);
+});
+
+app.patch('/api/films/:id', requireAdmin, async (c) => {
+  const body = await c.req.json();
+  const existing = await c.env.DB.prepare('SELECT * FROM films WHERE id = ?').bind(c.req.param('id')).first();
+  if (!existing) return fail(c, 'Not found.', 404);
+  const merged = { ...existing, ...body };
+  const err = validateFilm(merged);
+  if (err) return fail(c, err, 400);
+  await c.env.DB.prepare('UPDATE films SET title = ?, url = ? WHERE id = ?')
+    .bind(merged.title.trim(), merged.url.trim(), existing.id).run();
+  return ok(c, { film: await c.env.DB.prepare('SELECT * FROM films WHERE id = ?').bind(existing.id).first() });
+});
+
+app.delete('/api/films/:id', requireAdmin, async (c) => {
+  const existing = await c.env.DB.prepare('SELECT * FROM films WHERE id = ?').bind(c.req.param('id')).first();
+  if (!existing) return fail(c, 'Not found.', 404);
+  await c.env.DB.prepare('DELETE FROM films WHERE id = ?').bind(existing.id).run();
+  return ok(c, {});
+});
+
+app.post('/api/films/:id/poster', requireAdmin, async (c) => {
+  const film = await c.env.DB.prepare('SELECT * FROM films WHERE id = ?').bind(c.req.param('id')).first();
+  if (!film) return fail(c, 'Not found.', 404);
+  const contentType = c.req.header('content-type') ?? '';
+  if (!ALLOWED_TYPES.some((t) => contentType.includes(t))) return fail(c, 'Only jpg/png/webp.', 415);
+  const buf = await c.req.arrayBuffer();
+  if (buf.byteLength > 2 * 1024 * 1024) return fail(c, 'Image too large (max 2MB).', 413);
+  const key = `posters/${film.id}-${Date.now()}.jpg`;
+  await c.env.AVATARS.put(key, buf, { httpMetadata: { contentType } });
+  await c.env.DB.prepare('UPDATE films SET poster_r2_key = ? WHERE id = ?').bind(key, film.id).run();
+  return ok(c, { poster_r2_key: key });
+});
+
+app.get('/posters/:key', async (c) => {
+  const obj = await c.env.AVATARS.get(`posters/${c.req.param('key')}`);
+  if (!obj) return fail(c, 'Not found.', 404);
+  return new Response(obj.body, { headers: { 'Content-Type': obj.httpMetadata?.contentType ?? 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });
+});
+
 app.get('/api/calendar', requireUser, async (c) => {
   const month = c.req.query('month');
   if (!/^\d{4}-\d{2}$/.test(month ?? '')) return fail(c, 'month as YYYY-MM is required.', 400);
