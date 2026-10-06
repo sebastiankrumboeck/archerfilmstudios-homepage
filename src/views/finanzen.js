@@ -97,13 +97,12 @@ export function renderInvoiceDetail(el, { invoice, memberName }, { canSend = fal
       <dl class="mt-6 space-y-2 text-sm">
         <div class="flex justify-between gap-4"><dt class="uppercase text-paper/60">Empfänger</dt><dd>${esc(memberName ?? invoice.user_id)}</dd></div>
         <div class="flex justify-between gap-4"><dt class="uppercase text-paper/60">Verein</dt><dd>${esc(CLUB.name)}</dd></div>
-        <div class="flex justify-between gap-4"><dt class="uppercase text-paper/60">IBAN</dt><dd>${esc(CLUB.iban)}</dd></div>
-        <div class="flex justify-between gap-4"><dt class="uppercase text-paper/60">Kontoinhaber</dt><dd>${esc(CLUB.holder)}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="uppercase text-paper/60">Kontoinhaber</dt><dd>${esc(CLUB.name)}</dd></div>
         <div class="flex justify-between gap-4"><dt class="uppercase text-paper/60">Betrag</dt><dd class="font-semibold">${esc(formatEuro(invoice.amount_cents))}</dd></div>
         <div class="flex justify-between gap-4"><dt class="uppercase text-paper/60">Verwendungszweck</dt><dd>${esc(invoice.year)}-${esc(invoice.user_id)}</dd></div>
         <div class="flex justify-between gap-4"><dt class="uppercase text-paper/60">Status</dt><dd>${esc(STATUS_DE[invoice.status] ?? invoice.status)}</dd></div>
       </dl>
-      <p class="mt-6 text-sm text-paper/60">Bitte überweise den Betrag mit dem angegebenen Verwendungszweck.</p>
+      <p class="mt-6 text-sm text-paper/60">Bitte überweise den Betrag mit dem angegebenen Verwendungszweck. Die Bankverbindung (IBAN) erhältst du per E-Mail.</p>
       ${canSend ? '<p data-send-status class="mt-2 text-sm text-paper/60"></p><button type="button" data-send class="mt-3 w-fit border border-amber px-5 py-3 text-xs uppercase tracking-widest">Per E-Mail senden</button>' : ''}
     </article>`;
   el.querySelector('[data-send]')?.addEventListener('click', async (e) => {

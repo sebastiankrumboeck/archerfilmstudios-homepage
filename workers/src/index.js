@@ -158,26 +158,44 @@ const YEARLY_CENTS = 1200;
 const yearlyReason = (year) => `Mitgliedsbeitrag ${year}`;
 const owesForYear = (user, year) => year > Number(String(user.created_at ?? '').slice(0, 4));
 
-const CLUB_BILLING = { name: 'Archer FilmStudios', iban: 'REPLACE_WITH_IBAN', holder: 'REPLACE_WITH_HOLDER' };
+const CLUB_BILLING = { name: 'Archer FilmStudios', holder: 'Archer FilmStudios' };
 const INVOICE_SENDER = 'invoices@archerfilmstudios.com';
 
 function euroText(cents) {
   return `${(cents / 100).toFixed(2).replace('.', ',')} €`;
 }
 
+const isDuesInvoice = (invoice) => invoice.reason === yearlyReason(invoice.year);
+
 export async function sendInvoiceEmail(env, { to, invoice, memberName }) {
   if (!env.RESEND_API_KEY) return { ok: false, error: 'Email not configured.' };
-  const subject = `Rechnung ${invoice.reason} (${invoice.year}) – ${CLUB_BILLING.name}`;
+  const iban = env.ARCHER_IBAN?.trim();
+  if (!iban) return { ok: false, error: 'Bank details not configured.' };
+  const dues = isDuesInvoice(invoice);
+  const subject = dues
+    ? `Mitgliedsbeitrag ${invoice.year} – ${CLUB_BILLING.name}`
+    : `${invoice.reason} – ${CLUB_BILLING.name}`;
+  const intro = dues
+    ? `anbei deine Beitragsvorschreibung für den Mitgliedsbeitrag ${invoice.year} von ${CLUB_BILLING.name}.`
+    : `anbei deine Rechnung (${invoice.reason}) von ${CLUB_BILLING.name}.`;
   const text = [
     `Hallo ${memberName},`,
     '',
-    `anbei deine Rechnung von ${CLUB_BILLING.name}:`,
-    `${invoice.reason} ${invoice.year}: ${euroText(invoice.amount_cents)}`,
+    intro,
     '',
-    `Bitte überweise den Betrag auf:`,
-    `${CLUB_BILLING.holder}`,
-    `IBAN: ${CLUB_BILLING.iban}`,
+    ...(dues
+      ? [`Mitgliedsbeitrag: ${euroText(invoice.amount_cents)}`, `Beitragsjahr: ${invoice.year}`]
+      : [`Betrag: ${euroText(invoice.amount_cents)}`, `Grund: ${invoice.reason}`]),
+    '',
+    `Bitte überweise den Betrag auf folgendes Konto:`,
+    '',
+    `Kontoinhaber: ${CLUB_BILLING.holder}`,
+    `IBAN: ${iban}`,
     `Verwendungszweck: ${invoice.year}-${invoice.user_id}`,
+    '',
+    `Vielen Dank für deine Mitgliedschaft!`,
+    '',
+    `${CLUB_BILLING.name}`,
   ].join('\n');
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -249,7 +267,7 @@ app.post('/api/invoices/:id/send', requireKassier, async (c) => {
   const user = await c.env.DB.prepare('SELECT id, email, name FROM users WHERE id = ?').bind(inv.user_id).first();
   if (!user) return fail(c, 'Unknown member.', 400);
   const email = await sendInvoiceEmail(c.env, { to: user.email, invoice: invoiceJson(inv), memberName: user.name });
-  if (!email.ok) return fail(c, email.error, email.error === 'Email not configured.' ? 503 : 502);
+  if (!email.ok) return fail(c, email.error, email.error.endsWith('not configured.') ? 503 : 502);
   return ok(c, { sent: true });
 });
 

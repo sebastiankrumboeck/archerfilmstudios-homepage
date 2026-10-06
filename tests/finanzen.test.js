@@ -47,14 +47,16 @@ describe('finanzen views', () => {
     expect(onCancel).toHaveBeenCalledWith(INV);
   });
 
-  it('invoice detail shows club, IBAN, amount, reason, reference', () => {
+  it('invoice detail shows club, holder, amount, reason, reference, no IBAN in bundle', () => {
     const el = document.createElement('div');
     renderInvoiceDetail(el, { invoice: INV, memberName: 'Mara' });
     expect(el.textContent).toContain('Archer FilmStudios');
-    expect(el.textContent).toContain(CLUB.iban);
+    expect(el.textContent).toContain(CLUB.name);
     expect(el.textContent).toContain('12,00 €');
     expect(el.textContent).toContain('Mitgliedsbeitrag 2026');
     expect(el.textContent).toContain('2026-u-2');
+    expect(el.textContent).not.toContain('REPLACE_WITH_');
+    expect(CLUB).not.toHaveProperty('iban');
   });
 
   it('invoice form prefills year, 12.00 and the template reason', async () => {

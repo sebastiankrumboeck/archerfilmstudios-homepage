@@ -17,6 +17,9 @@ Cinematic film & photography club site (Vite multi-page + Cloudflare Workers).
 3. `pnpm dlx wrangler d1 execute archer-club --file workers/schema.sql --local`
 4. Seed: replace `REPLACE_WITH_HASH` in `workers/seed.sql`, then execute it.
 5. `pnpm dlx wrangler r2 bucket create avatars`
+6. Secrets (never commit real values; see `.dev.vars.example` for local dev):
+   - `npx wrangler secret put RESEND_API_KEY` — Resend API key for invoice emails
+   - `npx wrangler secret put ARCHER_IBAN` — club IBAN used in invoice emails
 
 Contact is mailto-only (`hello@archerfilmstudios`) — no email backend needed.
 Vorstand is static in `src/data/vorstand.js`.

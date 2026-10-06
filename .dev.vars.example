@@ -1,0 +1,5 @@
+# Local worker secrets — copy to `.dev.vars` (gitignored, never commit real values).
+# Production: `npx wrangler secret put RESEND_API_KEY` and
+# `npx wrangler secret put ARCHER_IBAN` (Cloudflare dashboard or CLI).
+RESEND_API_KEY=
+ARCHER_IBAN=
