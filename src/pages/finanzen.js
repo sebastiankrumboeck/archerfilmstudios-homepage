@@ -1,6 +1,6 @@
 import { mountLayout } from '../layout.js';
 import { api } from '../api/client.js';
-import { renderAllInvoices, renderForbidden, renderInvoiceDetail, renderInvoiceForm, renderMyInvoices, renderOpenItems } from '../views/finanzen.js';
+import { renderAllInvoices, renderForbidden, renderInvoiceDetail, renderInvoiceForm, renderMyInvoices, renderOpenItems, renderSummary } from '../views/finanzen.js';
 
 await mountLayout('finanzen');
 const view = document.querySelector('#app-view');
@@ -87,6 +87,19 @@ async function showAll(filter = {}) {
     openBox.append(p);
   }
   view.append(openBox);
+  const summaryBox = document.createElement('div');
+  summaryBox.className = 'mt-8 border border-paper/15 p-6';
+  try {
+    const summaryYear = filter.year || new Date().getFullYear();
+    const summaryData = await api(`/api/invoices/summary?year=${summaryYear}`);
+    renderSummary(summaryBox, summaryData.summary);
+  } catch (err) {
+    const p = document.createElement('p');
+    p.className = 'text-sm text-red-400';
+    p.textContent = err.message;
+    summaryBox.append(p);
+  }
+  view.append(summaryBox);
   const list = document.createElement('div');
   list.className = 'mt-8';
   renderAllInvoices(list, data.invoices, {    status: filter.status ?? '',

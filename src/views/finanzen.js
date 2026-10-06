@@ -144,6 +144,18 @@ export function renderOpenItems(el, invoices = [], { onRemind = null, now = Date
   el.append(list);
 }
 
+export function renderSummary(el, summary) {
+  el.innerHTML = '';
+  if (!summary) return;
+  el.innerHTML = `
+    <h3 class="font-display text-xl uppercase">Jahresübersicht ${esc(String(summary.year))}</h3>
+    <dl class="mt-2 space-y-1 text-sm">
+      <div class="flex justify-between gap-4"><dt class="uppercase text-paper/60">Fakturiert</dt><dd class="font-semibold">${esc(formatEuro(summary.invoiced_cents))}</dd></div>
+      <div class="flex justify-between gap-4"><dt class="uppercase text-paper/60">Bezahlt</dt><dd>${esc(formatEuro(summary.paid_cents))} (davon bar: ${esc(formatEuro(summary.paid_cash_cents))}, überwiesen: ${esc(formatEuro(summary.paid_transfer_cents))})</dd></div>
+      <div class="flex justify-between gap-4"><dt class="uppercase text-paper/60">Offen</dt><dd>${esc(formatEuro(summary.open_cents))} (${summary.count_open} Rechnung(en))</dd></div>
+    </dl>`;
+}
+
 export function renderInvoiceDetail(el, { invoice, memberName }, { canSend = false, onSend = null } = {}) {
   el.innerHTML = '';
   if (!invoice) {

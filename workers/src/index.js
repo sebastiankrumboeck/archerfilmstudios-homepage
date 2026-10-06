@@ -253,6 +253,31 @@ app.get('/api/invoices', requireKassier, async (c) => {
   return ok(c, { invoices: results.map(invoiceJson) });
 });
 
+app.get('/api/invoices/summary', requireKassier, async (c) => {
+  const rawYear = c.req.query('year');
+  const year = rawYear == null || rawYear === '' ? new Date().getFullYear() : Number(rawYear);
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) return fail(c, 'Invalid year.', 400);
+  const open = await c.env.DB.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS sum FROM invoices WHERE status = 'open' AND year = ?")
+    .bind(year).first();
+  const paid = await c.env.DB.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS sum, COALESCE(SUM(CASE WHEN paid_method = 'cash' THEN amount_cents ELSE 0 END), 0) AS cash, COALESCE(SUM(CASE WHEN paid_method = 'transfer' THEN amount_cents ELSE 0 END), 0) AS transfer FROM invoices WHERE status = 'paid' AND year = ?")
+    .bind(year).first();
+  const cancelled = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM invoices WHERE status = 'cancelled' AND year = ?")
+    .bind(year).first();
+  return ok(c, {
+    summary: {
+      year,
+      invoiced_cents: open.sum + paid.sum,
+      paid_cents: paid.sum,
+      open_cents: open.sum,
+      paid_cash_cents: paid.cash,
+      paid_transfer_cents: paid.transfer,
+      count_open: open.n,
+      count_paid: paid.n,
+      count_cancelled: cancelled.n,
+    },
+  });
+});
+
 app.post('/api/invoices', requireKassier, async (c) => {
   const session = c.get('session');
   const body = await c.req.json();
