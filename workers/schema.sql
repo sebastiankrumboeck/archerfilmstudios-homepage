@@ -47,3 +47,18 @@ CREATE TABLE films (
   url TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+ALTER TABLE users ADD COLUMN is_kassier INTEGER DEFAULT 0;
+CREATE TABLE invoices (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  year INTEGER NOT NULL,
+  amount_cents INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  paid_at TEXT,
+  paid_method TEXT,
+  marked_by TEXT
+);
+CREATE INDEX idx_invoices_user ON invoices(user_id);
