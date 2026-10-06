@@ -23,7 +23,7 @@ export function renderProjectCard(el, project, { isAdmin = false, isMember = fal
   el.innerHTML = `
     <article class="border-t-2 pt-3" style="border-color:${color}">
       <span class="inline-block px-2 py-1 text-xs" style="background:${color};color:#151412">${intensityLabel(project.intensity)}</span>
-      <h3 class="mt-2 font-display text-2xl uppercase">${esc(project.title)}</h3>
+      <h3 class="mt-2 font-display text-2xl uppercase"><a class="transition-colors hover:text-amber" href="/projects/?id=${encodeURIComponent(project.id)}">${esc(project.title)}</a></h3>
       <p class="text-sm text-paper/70">${esc(project.description ?? '')}</p>
       <p class="mt-1 text-xs uppercase tracking-widest text-muted">${fmtDate(project.start_at)} → ${fmtDate(project.end_at)} · max ${project.max_members ?? '∞'}</p>
       <div class="mt-2 flex -space-x-2">${avatars}</div>

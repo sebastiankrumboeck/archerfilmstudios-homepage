@@ -50,6 +50,14 @@ describe('views', () => {
     expect(bar.textContent).toContain('Shoot');
   });
 
+  it('project card links to the project detail page', () => {
+    const el = document.createElement('div');
+    renderProjectCard(el, { id: 'p1', title: 'Shoot', intensity: 4, start_at: '2026-11-08T18:00:00Z', end_at: '2026-11-08T22:00:00Z', max_members: 8, member_count: 3, members: [], isMember: false });
+    const link = el.querySelector('a[href="/projects/?id=p1"]');
+    expect(link).toBeTruthy();
+    expect(link.textContent).toContain('Shoot');
+  });
+
   it('reminder toggle shows state and fires the flipped value', () => {
     const el = document.createElement('div');
     const onToggle = vi.fn();
