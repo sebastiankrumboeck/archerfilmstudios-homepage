@@ -27,7 +27,12 @@ async function showDetail(id, kassier) {
       name = inv.user_id;
     }
   }
-  renderInvoiceDetail(view, { invoice: inv, memberName: name });
+  renderInvoiceDetail(view, { invoice: inv, memberName: name }, {
+    canSend: kassier,
+    onSend: async (invoice) => {
+      await api(`/api/invoices/${invoice.id}/send`, { method: 'POST', body: '{}' });
+    },
+  });
   const backBtn = document.createElement('button');
   backBtn.type = 'button';
   backBtn.className = 'mt-6 border border-paper/20 px-4 py-2 text-xs uppercase';

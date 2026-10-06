@@ -158,6 +158,40 @@ const YEARLY_CENTS = 1200;
 const yearlyReason = (year) => `Mitgliedsbeitrag ${year}`;
 const owesForYear = (user, year) => year > Number(String(user.created_at ?? '').slice(0, 4));
 
+const CLUB_BILLING = { name: 'Archer FilmStudios', iban: 'REPLACE_WITH_IBAN', holder: 'REPLACE_WITH_HOLDER' };
+const INVOICE_SENDER = 'invoices@archerfilmstudios.com';
+
+function euroText(cents) {
+  return `${(cents / 100).toFixed(2).replace('.', ',')} €`;
+}
+
+export async function sendInvoiceEmail(env, { to, invoice, memberName }) {
+  if (!env.RESEND_API_KEY) return { ok: false, error: 'Email not configured.' };
+  const subject = `Rechnung ${invoice.reason} (${invoice.year}) – ${CLUB_BILLING.name}`;
+  const text = [
+    `Hallo ${memberName},`,
+    '',
+    `anbei deine Rechnung von ${CLUB_BILLING.name}:`,
+    `${invoice.reason} ${invoice.year}: ${euroText(invoice.amount_cents)}`,
+    '',
+    `Bitte überweise den Betrag auf:`,
+    `${CLUB_BILLING.holder}`,
+    `IBAN: ${CLUB_BILLING.iban}`,
+    `Verwendungszweck: ${invoice.year}-${invoice.user_id}`,
+  ].join('\n');
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: INVOICE_SENDER, to, subject, text }),
+    });
+    if (!res.ok) return { ok: false, error: `Email failed (${res.status}).` };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 function validateInvoice(body) {
   const year = body.year ?? new Date().getFullYear();
   if (!Number.isInteger(year) || year < 2000 || year > 2100) return { error: 'Invalid year.' };
@@ -198,13 +232,25 @@ app.post('/api/invoices', requireKassier, async (c) => {
   const body = await c.req.json();
   const v = validateInvoice(body);
   if (v.error) return fail(c, v.error, 400);
-  const user = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(body.user_id).first();
+  const user = await c.env.DB.prepare('SELECT id, email, name FROM users WHERE id = ?').bind(body.user_id).first();
   if (!user) return fail(c, 'Unknown member.', 400);
   const id = uid('inv');
   await c.env.DB.prepare('INSERT INTO invoices (id, user_id, year, amount_cents, reason, status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
     .bind(id, body.user_id, v.year, v.amount_cents, v.reason, 'open', session.user_id, nowISO()).run();
   const row = await c.env.DB.prepare('SELECT * FROM invoices WHERE id = ?').bind(id).first();
-  return ok(c, { invoice: invoiceJson(row) }, 201);
+  const invoice = invoiceJson(row);
+  const email = await sendInvoiceEmail(c.env, { to: user.email, invoice, memberName: user.name });
+  return ok(c, { invoice, email: { sent: email.ok, ...(email.ok ? {} : { error: email.error }) } }, 201);
+});
+
+app.post('/api/invoices/:id/send', requireKassier, async (c) => {
+  const inv = await c.env.DB.prepare('SELECT * FROM invoices WHERE id = ?').bind(c.req.param('id')).first();
+  if (!inv) return fail(c, 'Not found.', 404);
+  const user = await c.env.DB.prepare('SELECT id, email, name FROM users WHERE id = ?').bind(inv.user_id).first();
+  if (!user) return fail(c, 'Unknown member.', 400);
+  const email = await sendInvoiceEmail(c.env, { to: user.email, invoice: invoiceJson(inv), memberName: user.name });
+  if (!email.ok) return fail(c, email.error, email.error === 'Email not configured.' ? 503 : 502);
+  return ok(c, { sent: true });
 });
 
 app.post('/api/invoices/generate', requireKassier, async (c) => {

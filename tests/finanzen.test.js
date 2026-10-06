@@ -109,4 +109,15 @@ describe('finanzen views', () => {
       document.body.innerHTML = '';
     }
   });
+
+  it('invoice detail offers resend to kassier only', () => {
+    const onSend = vi.fn();
+    const admin = document.createElement('div');
+    renderInvoiceDetail(admin, { invoice: INV, memberName: 'Mara' }, { canSend: true, onSend });
+    admin.querySelector('[data-send]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onSend).toHaveBeenCalledWith(INV);
+    const plain = document.createElement('div');
+    renderInvoiceDetail(plain, { invoice: INV, memberName: 'Mara' }, {});
+    expect(plain.querySelector('[data-send]')).toBeNull();
+  });
 });

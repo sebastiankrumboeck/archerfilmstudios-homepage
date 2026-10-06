@@ -84,7 +84,7 @@ export function renderAllInvoices(el, invoices = [], { status = '', year = '', o
   el.append(table);
 }
 
-export function renderInvoiceDetail(el, { invoice, memberName }) {
+export function renderInvoiceDetail(el, { invoice, memberName }, { canSend = false, onSend = null } = {}) {
   el.innerHTML = '';
   if (!invoice) {
     el.innerHTML = '<p class="text-red-400">Rechnung nicht gefunden.</p>';
@@ -104,7 +104,21 @@ export function renderInvoiceDetail(el, { invoice, memberName }) {
         <div class="flex justify-between gap-4"><dt class="uppercase text-paper/60">Status</dt><dd>${esc(STATUS_DE[invoice.status] ?? invoice.status)}</dd></div>
       </dl>
       <p class="mt-6 text-sm text-paper/60">Bitte überweise den Betrag mit dem angegebenen Verwendungszweck.</p>
+      ${canSend ? '<p data-send-status class="mt-2 text-sm text-paper/60"></p><button type="button" data-send class="mt-3 w-fit border border-amber px-5 py-3 text-xs uppercase tracking-widest">Per E-Mail senden</button>' : ''}
     </article>`;
+  el.querySelector('[data-send]')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const status = el.querySelector('[data-send-status]');
+    btn.disabled = true;
+    try {
+      await onSend?.(invoice);
+      status.textContent = 'E-Mail gesendet ✓';
+    } catch (err) {
+      status.textContent = err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
 }
 
 export function renderInvoiceForm(el, { users = [], onCreate = null } = {}) {

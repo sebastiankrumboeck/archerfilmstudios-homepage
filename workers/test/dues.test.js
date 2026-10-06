@@ -18,7 +18,7 @@ function fakeDb({ session = null, userRow = null, userExists = null, users = [],
       bind: (...args) => ({
         first: async () => {
           if (sql.includes('FROM sessions')) return session;
-          if (sql === 'SELECT id FROM users WHERE id = ?') return userExists;
+          if (sql === 'SELECT id, email, name FROM users WHERE id = ?') return userExists;
           if (sql === 'SELECT * FROM users WHERE id = ?') return userRow;
           if (sql === 'SELECT * FROM invoices WHERE id = ?') return invoiceRow;
           if (sql.includes('FROM invoices') && sql.includes('user_id = ?')) {
