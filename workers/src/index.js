@@ -514,6 +514,7 @@ app.delete('/api/photos/:id', requireUser, async (c) => {
   const photo = await c.env.DB.prepare('SELECT * FROM project_photos WHERE id = ?').bind(c.req.param('id')).first();
   if (!photo) return fail(c, 'Not found.', 404);
   if (photo.uploaded_by !== session.user_id && !session.is_admin) return fail(c, 'Not yours.', 403);
+  await c.env.AVATARS.delete(photo.r2_key);
   await c.env.DB.prepare('DELETE FROM project_photos WHERE id = ?').bind(photo.id).run();
   return ok(c, {});
 });
@@ -675,6 +676,7 @@ app.get('/api/calendar', requireUser, async (c) => {
 
 // --- Shoot reminders (daily cron + manual resend) ---
 export async function sendShootReminders(env, now, onlyProjectId = null) {
+  if (!env.RESEND_API_KEY) return { projects: 0, emails: 0, failed: 0 };
   const nowMs = Date.parse(now);
   const windowEnd = new Date(nowMs + 48 * 3600 * 1000).toISOString();
   let projects;

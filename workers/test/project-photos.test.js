@@ -34,7 +34,7 @@ function fakeDb({ session = MEMBER_SESSION, project = PROJECT, member = true, ph
   };
 }
 
-const fakeR2 = () => ({ put: vi.fn().mockResolvedValue({}), get: vi.fn() });
+const fakeR2 = () => ({ put: vi.fn().mockResolvedValue({}), get: vi.fn(), delete: vi.fn().mockResolvedValue({}) });
 const imgBody = new Uint8Array([0xff, 0xd8, 0xff, 0x00]).buffer;
 const imgHeaders = { 'Content-Type': 'image/jpeg' };
 
@@ -94,13 +94,15 @@ describe('project photos', () => {
       method: 'DELETE', headers: mem,
     }, { DB: fakeDb({ photoRow: { ...PHOTO, uploaded_by: 'u-other' } }) });
     expect(stranger.status).toBe(403);
+    const r2del = fakeR2();
     const mine = await app.request('/api/photos/ph-1', {
       method: 'DELETE', headers: mem,
-    }, { DB: fakeDb() });
+    }, { DB: fakeDb(), AVATARS: r2del });
     expect(mine.status).toBe(200);
+    expect(r2del.delete).toHaveBeenCalledWith('galleries/p1-123.jpg');
     const adminDel = await app.request('/api/photos/ph-1', {
       method: 'DELETE', headers: adm,
-    }, { DB: fakeDb({ session: ADMIN, photoRow: { ...PHOTO, uploaded_by: 'u-other' } }) });
+    }, { DB: fakeDb({ session: ADMIN, photoRow: { ...PHOTO, uploaded_by: 'u-other' } }), AVATARS: fakeR2() });
     expect(adminDel.status).toBe(200);
     const missing = await app.request('/api/photos/nope', {
       method: 'DELETE', headers: adm,

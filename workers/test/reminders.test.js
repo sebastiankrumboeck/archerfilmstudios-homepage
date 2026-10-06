@@ -150,4 +150,18 @@ describe('shoot reminders', () => {
   it('app exposes a scheduled handler', () => {
     expect(typeof app.scheduled).toBe('function');
   });
+
+  it('without API key sends nothing and writes no log', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const ran = [];
+    try {
+      const res = await sendShootReminders({ DB: fakeDb({ runLog: (sql, args) => ran.push([sql, args]) }) }, NOW);
+      expect(res).toEqual({ projects: 0, emails: 0, failed: 0 });
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(ran).toHaveLength(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
