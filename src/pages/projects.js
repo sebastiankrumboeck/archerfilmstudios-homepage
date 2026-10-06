@@ -1,6 +1,6 @@
 import { mountLayout } from '../layout.js';
 import { api } from '../api/client.js';
-import { renderProjectDetail, renderProjects, renderProjectForm } from '../views/projects.js';
+import { renderProjectDetail, renderProjectGallery, renderProjects, renderProjectForm } from '../views/projects.js';
 
 await mountLayout('projects');
 const view = document.querySelector('#app-view');
@@ -52,6 +52,45 @@ async function loadDetail(id) {
       }
     },
   });
+  let me = null;
+  try {
+    ({ user: me } = await api('/api/me'));
+  } catch {
+    me = null;
+  }
+  const gallery = document.createElement('div');
+  view.append(gallery);
+  const renderGallery = async () => {
+    const { photos } = await api(`/api/projects/${encodeURIComponent(id)}/photos`);
+    renderProjectGallery(gallery, photos, {
+      canUpload: data.isMember || data.canEdit,
+      canDeleteFor: (p) => data.canEdit || p.uploaded_by === me?.id,
+      onUpload: async (file) => {
+        if (file.size > 2 * 1024 * 1024) throw new Error('Image too large (max 2MB).');
+        const res = await fetch(`/api/projects/${encodeURIComponent(id)}/photos`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': file.type },
+          body: file,
+        });
+        const body = await res.json().catch(() => null);
+        if (!res.ok || body?.ok === false) throw new Error(body?.error ?? `Fehler ${res.status}`);
+        await renderGallery();
+      },
+      onDelete: async (photo) => {
+        await api(`/api/photos/${photo.id}`, { method: 'DELETE' });
+        await renderGallery();
+      },
+    });
+  };
+  try {
+    await renderGallery();
+  } catch (err) {
+    const p = document.createElement('p');
+    p.className = 'mt-8 text-sm text-red-400';
+    p.textContent = err.message;
+    gallery.append(p);
+  }
 }
 
 async function load() {

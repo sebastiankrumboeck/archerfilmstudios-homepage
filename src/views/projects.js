@@ -146,6 +146,89 @@ export function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+export function renderProjectGallery(el, photos = [], { canUpload = false, canDeleteFor = null, onUpload = null, onDelete = null } = {}) {
+  el.innerHTML = '';
+  const section = document.createElement('section');
+  section.className = 'mt-8';
+  const title = document.createElement('h3');
+  title.className = 'font-display text-xl uppercase';
+  title.textContent = 'Gallery';
+  section.append(title);
+  if (!photos.length) {
+    const empty = document.createElement('p');
+    empty.className = 'mt-2 text-sm text-paper/60';
+    empty.textContent = 'No photos yet — be the first to upload!';
+    section.append(empty);
+  }
+  const grid = document.createElement('div');
+  grid.className = 'mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3';
+  for (const photo of photos) {
+    const fig = document.createElement('figure');
+    fig.className = 'relative';
+    const img = document.createElement('img');
+    img.src = `/gallery/${String(photo.r2_key).replace(/^galleries\//, '')}`;
+    img.alt = 'Project photo';
+    img.loading = 'lazy';
+    img.className = 'h-48 w-full object-cover';
+    fig.append(img);
+    if (canDeleteFor?.(photo)) {
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.setAttribute('data-delete', photo.id);
+      del.className = 'absolute right-1 top-1 border border-paper/20 bg-ink/70 px-2 py-1 text-xs uppercase';
+      del.textContent = 'Delete';
+      del.addEventListener('click', async () => {
+        if (!confirm('Really delete this photo?')) return;
+        try {
+          await onDelete?.(photo);
+        } catch (err) {
+          status.textContent = err.message;
+        }
+      });
+      fig.append(del);
+    }
+    grid.append(fig);
+  }
+  section.append(grid);
+  if (canUpload) {
+    const row = document.createElement('div');
+    row.className = 'mt-4 flex flex-wrap items-center gap-2';
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/jpeg,image/png,image/webp';
+    input.className = 'text-sm';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.setAttribute('data-upload', '');
+    btn.className = 'border border-amber px-4 py-2 text-xs uppercase tracking-widest';
+    btn.textContent = 'Upload photo';
+    btn.addEventListener('click', async () => {
+      const file = input.files?.[0];
+      if (!file) {
+        status.textContent = 'Choose a photo first.';
+        return;
+      }
+      btn.disabled = true;
+      try {
+        await onUpload?.(file);
+        status.textContent = '';
+        input.value = '';
+      } catch (err) {
+        status.textContent = err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    row.append(input, btn);
+    section.append(row);
+  }
+  const status = document.createElement('p');
+  status.setAttribute('data-status', '');
+  status.className = 'mt-2 text-sm text-paper/60';
+  section.append(status);
+  el.append(section);
+}
+
 function escAttr(value) {
   return esc(value).replace(/`/g, '&#96;');
 }
