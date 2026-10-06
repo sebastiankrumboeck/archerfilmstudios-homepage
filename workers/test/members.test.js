@@ -27,6 +27,6 @@ describe('withMemberCounts', () => {
   it('maps members to the public-user shape', async () => {
     const [p] = await withMemberCounts(fakeDb, [{ id: 'p1' }]);
     expect(p.member_count).toBe(1);
-    expect(p.members[0]).toEqual({ id: 'u-1', name: 'A', function: 'F', avatar_r2_key: null, is_admin: false, is_vorstand: false, vorstand_title: null });
+    expect(p.members[0]).toEqual({ id: 'u-1', name: 'A', function: 'F', avatar_r2_key: null, is_admin: false, is_vorstand: false, vorstand_title: null, is_kassier: false });
   });
 });

@@ -1,13 +1,13 @@
 import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import { hashPassword, verifyPassword, uid, nowISO, getSessionUser, requireUser, requireAdmin } from './auth.js';
+import { hashPassword, verifyPassword, uid, nowISO, getSessionUser, requireUser, requireAdmin, requireKassier } from './auth.js';
 
 const app = new Hono();
 
 const ok = (c, data, status = 200) => c.json({ ok: true, data }, status);
 const fail = (c, error, status = 400) => c.json({ ok: false, error }, status);
 const isEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e ?? '');
-const publicUser = (u) => ({ id: u.id, name: u.name, function: u.function, avatar_r2_key: u.avatar_r2_key, is_admin: !!u.is_admin, is_vorstand: !!u.is_vorstand, vorstand_title: u.vorstand_title });
+const publicUser = (u) => ({ id: u.id, name: u.name, function: u.function, avatar_r2_key: u.avatar_r2_key, is_admin: !!u.is_admin, is_vorstand: !!u.is_vorstand, vorstand_title: u.vorstand_title, is_kassier: !!u.is_kassier });
 
 function sessionCookie(c, id) {
   const host = c.req.header('host') ?? '';
@@ -141,6 +141,108 @@ app.put('/api/vorstand-links', requireAdmin, async (c) => {
 app.delete('/api/vorstand-links/:slot', requireAdmin, async (c) => {
   await c.env.DB.prepare('DELETE FROM vorstand_links WHERE slot = ?').bind(c.req.param('slot')).run();
   return ok(c, { links: await vorstandLinkMap(c.env.DB) });
+});
+
+app.patch('/api/users/:id/kassier', requireAdmin, async (c) => {
+  const { id } = c.req.param();
+  const { is_kassier } = await c.req.json();
+  await c.env.DB.prepare('UPDATE users SET is_kassier = ? WHERE id = ?')
+    .bind(is_kassier ? 1 : 0, id).run();
+  const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
+  if (!user) return fail(c, 'Not found.', 404);
+  return ok(c, { user: publicUser(user) });
+});
+
+// --- Dues & invoices (kassier-gated) ---
+const YEARLY_CENTS = 1200;
+const yearlyReason = (year) => `Mitgliedsbeitrag ${year}`;
+const owesForYear = (user, year) => year > Number(String(user.created_at ?? '').slice(0, 4));
+
+function validateInvoice(body) {
+  const year = body.year ?? new Date().getFullYear();
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) return { error: 'Invalid year.' };
+  const amount_cents = body.amount_cents ?? YEARLY_CENTS;
+  if (!Number.isInteger(amount_cents) || amount_cents < 1) return { error: 'Invalid amount.' };
+  if (body.reason != null && !String(body.reason).trim()) return { error: 'Reason is required.' };
+  return { year, amount_cents, reason: body.reason?.trim() || yearlyReason(year) };
+}
+
+const invoiceJson = (r) => ({ id: r.id, user_id: r.user_id, user_name: r.user_name ?? null, year: r.year, amount_cents: r.amount_cents, reason: r.reason, status: r.status, created_at: r.created_at, paid_at: r.paid_at ?? null, paid_method: r.paid_method ?? null });
+
+app.get('/api/invoices/me', requireUser, async (c) => {
+  const session = c.get('session');
+  const { results } = await c.env.DB.prepare('SELECT * FROM invoices WHERE user_id = ? ORDER BY year DESC, created_at DESC').bind(session.user_id).all();
+  return ok(c, { invoices: results.map(invoiceJson) });
+});
+
+app.get('/api/invoices', requireKassier, async (c) => {
+  const status = c.req.query('status');
+  const year = c.req.query('year');
+  let sql = 'SELECT i.*, u.name AS user_name FROM invoices i LEFT JOIN users u ON u.id = i.user_id WHERE 1 = 1';
+  const args = [];
+  if (status) {
+    sql += ' AND i.status = ?';
+    args.push(status);
+  }
+  if (year) {
+    sql += ' AND i.year = ?';
+    args.push(Number(year));
+  }
+  sql += ' ORDER BY i.year DESC, i.created_at DESC';
+  const { results } = await c.env.DB.prepare(sql).bind(...args).all();
+  return ok(c, { invoices: results.map(invoiceJson) });
+});
+
+app.post('/api/invoices', requireKassier, async (c) => {
+  const session = c.get('session');
+  const body = await c.req.json();
+  const v = validateInvoice(body);
+  if (v.error) return fail(c, v.error, 400);
+  const user = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(body.user_id).first();
+  if (!user) return fail(c, 'Unknown member.', 400);
+  const id = uid('inv');
+  await c.env.DB.prepare('INSERT INTO invoices (id, user_id, year, amount_cents, reason, status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, body.user_id, v.year, v.amount_cents, v.reason, 'open', session.user_id, nowISO()).run();
+  const row = await c.env.DB.prepare('SELECT * FROM invoices WHERE id = ?').bind(id).first();
+  return ok(c, { invoice: invoiceJson(row) }, 201);
+});
+
+app.post('/api/invoices/generate', requireKassier, async (c) => {
+  const session = c.get('session');
+  const body = await c.req.json().catch(() => ({}));
+  const year = body.year ?? new Date().getFullYear();
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) return fail(c, 'Invalid year.', 400);
+  const { results: users } = await c.env.DB.prepare('SELECT * FROM users').all();
+  let created = 0;
+  for (const u of users ?? []) {
+    if (!owesForYear(u, year)) continue;
+    const { results: existing } = await c.env.DB.prepare('SELECT * FROM invoices WHERE user_id = ? AND year = ?').bind(u.id, year).all();
+    if (existing.some((r) => r.reason === yearlyReason(year) && r.status !== 'cancelled')) continue;
+    await c.env.DB.prepare('INSERT INTO invoices (id, user_id, year, amount_cents, reason, status, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(uid('inv'), u.id, year, YEARLY_CENTS, yearlyReason(year), 'open', session.user_id, nowISO()).run();
+    created += 1;
+  }
+  return ok(c, { created });
+});
+
+app.patch('/api/invoices/:id/pay', requireKassier, async (c) => {
+  const session = c.get('session');
+  const { method } = await c.req.json();
+  if (method !== 'cash' && method !== 'transfer') return fail(c, 'Invalid method.', 400);
+  const inv = await c.env.DB.prepare('SELECT * FROM invoices WHERE id = ?').bind(c.req.param('id')).first();
+  if (!inv) return fail(c, 'Not found.', 404);
+  if (inv.status !== 'open') return fail(c, 'Already paid.', 409);
+  await c.env.DB.prepare('UPDATE invoices SET status = ?, paid_at = ?, paid_method = ?, marked_by = ? WHERE id = ?')
+    .bind('paid', nowISO(), method, session.user_id, inv.id).run();
+  return ok(c, {});
+});
+
+app.patch('/api/invoices/:id/cancel', requireKassier, async (c) => {
+  const inv = await c.env.DB.prepare('SELECT * FROM invoices WHERE id = ?').bind(c.req.param('id')).first();
+  if (!inv) return fail(c, 'Not found.', 404);
+  if (inv.status !== 'open') return fail(c, 'Already paid.', 409);
+  await c.env.DB.prepare('UPDATE invoices SET status = ? WHERE id = ?').bind('cancelled', inv.id).run();
+  return ok(c, {});
 });
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];

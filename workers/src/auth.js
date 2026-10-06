@@ -31,7 +31,7 @@ export async function getSessionUser(c) {
   const cookie = c.req.header('cookie') ?? '';
   const match = cookie.match(/(?:^|;\s*)(?:app-session|__Host-session)=([^;]+)/);
   if (!match) return null;
-  const row = await c.env.DB.prepare('SELECT s.*, u.is_admin FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ? AND s.expires_at > ?')
+  const row = await c.env.DB.prepare('SELECT s.*, u.is_admin, u.is_kassier FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ? AND s.expires_at > ?')
     .bind(match[1], nowISO()).first();
   return row ?? null;
 }
@@ -47,6 +47,14 @@ export async function requireAdmin(c, next) {
   const session = await getSessionUser(c);
   if (!session) return c.json({ ok: false, error: 'Please log in.' }, 401);
   if (!session.is_admin) return c.json({ ok: false, error: 'Admins only.' }, 403);
+  c.set('session', session);
+  await next();
+}
+
+export async function requireKassier(c, next) {
+  const session = await getSessionUser(c);
+  if (!session) return c.json({ ok: false, error: 'Please log in.' }, 401);
+  if (!session.is_kassier) return c.json({ ok: false, error: 'Kassier only.' }, 403);
   c.set('session', session);
   await next();
 }
