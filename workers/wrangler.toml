@@ -14,3 +14,6 @@ database_id = "fba0b17b-6b13-4197-92f9-ce4885491e0b"
 [[r2_buckets]]
 binding = "AVATARS"
 bucket_name = "avatars"
+
+[triggers]
+crons = ["0 6 * * *"]

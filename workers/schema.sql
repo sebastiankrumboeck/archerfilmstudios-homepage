@@ -62,3 +62,9 @@ CREATE TABLE invoices (
   marked_by TEXT
 );
 CREATE INDEX idx_invoices_user ON invoices(user_id);
+CREATE TABLE reminder_log (
+  project_id TEXT NOT NULL,
+  start_at TEXT NOT NULL,
+  sent_at TEXT NOT NULL,
+  PRIMARY KEY(project_id, start_at)
+);

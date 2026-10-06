@@ -572,4 +572,65 @@ app.get('/api/calendar', requireUser, async (c) => {
   return ok(c, { month, projects: await withMemberCounts(c.env.DB, results) });
 });
 
+// --- Shoot reminders (daily cron + manual resend) ---
+export async function sendShootReminders(env, now, onlyProjectId = null) {
+  const nowMs = Date.parse(now);
+  const windowEnd = new Date(nowMs + 48 * 3600 * 1000).toISOString();
+  let projects;
+  if (onlyProjectId) {
+    const project = await env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(onlyProjectId).first();
+    if (!project) return null;
+    projects = [project];
+  } else {
+    const { results } = await env.DB.prepare('SELECT * FROM projects WHERE start_at > ? AND start_at <= ?').bind(now, windowEnd).all();
+    projects = results ?? [];
+  }
+  let emailed = 0;
+  let failed = 0;
+  let reminded = 0;
+  for (const project of projects) {
+    const logged = await env.DB.prepare('SELECT * FROM reminder_log WHERE project_id = ? AND start_at = ?')
+      .bind(project.id, project.start_at).first();
+    if (logged) continue;
+    const { results: members } = await env.DB.prepare('SELECT u.email, u.name FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.project_id = ?')
+      .bind(project.id).all();
+    const day = String(project.start_at).slice(0, 10);
+    const time = String(project.start_at).slice(11, 16);
+    for (const m of members ?? []) {
+      const text = [
+        `Hallo ${m.name},`,
+        '',
+        `am ${day} um ${time} findet ${project.title} statt (${project.location}).`,
+        '',
+        `Wir freuen uns auf dich!`,
+        '',
+        `Archer FilmStudios`,
+      ].join('\n');
+      try {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: CONTACT_FROM, to: m.email, subject: `Erinnerung: ${project.title} – Archer FilmStudios`, text }),
+        });
+        if (!res.ok) failed += 1;
+        else emailed += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    await env.DB.prepare('INSERT INTO reminder_log (project_id, start_at, sent_at) VALUES (?, ?, ?)')
+      .bind(project.id, project.start_at, nowISO()).run();
+    reminded += 1;
+  }
+  return { projects: reminded, emails: emailed, failed };
+}
+
+app.post('/api/projects/:id/remind', requireAdmin, async (c) => {
+  const result = await sendShootReminders(c.env, new Date().toISOString(), c.req.param('id'));
+  if (!result) return fail(c, 'Not found.', 404);
+  return ok(c, result);
+});
+
+app.scheduled = (event, env, ctx) => ctx.waitUntil(sendShootReminders(env, new Date().toISOString()));
+
 export default app;
