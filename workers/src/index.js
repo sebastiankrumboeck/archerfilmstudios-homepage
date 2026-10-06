@@ -438,6 +438,7 @@ app.patch('/api/projects/:id', requireAdmin, async (c) => {
 
 app.delete('/api/projects/:id', requireAdmin, async (c) => {
   await c.env.DB.prepare('DELETE FROM memberships WHERE project_id = ?').bind(c.req.param('id')).run();
+  await c.env.DB.prepare('DELETE FROM project_photos WHERE project_id = ?').bind(c.req.param('id')).run();
   await c.env.DB.prepare('DELETE FROM projects WHERE id = ?').bind(c.req.param('id')).run();
   return ok(c, {});
 });
@@ -467,6 +468,60 @@ app.delete('/api/projects/:id/join', requireUser, async (c) => {
   const r = await c.env.DB.prepare('DELETE FROM memberships WHERE project_id = ? AND user_id = ?').bind(pid, session.user_id).run();
   if (!r.meta.changes) return fail(c, 'Not found.', 404);
   return ok(c, {});
+});
+
+// --- Project photos (shared albums) ---
+const MAX_PHOTOS = 30;
+
+async function canUploadPhoto(c, pid) {
+  const session = c.get('session');
+  if (session.is_admin) return true;
+  const m = await c.env.DB.prepare('SELECT * FROM memberships WHERE project_id = ? AND user_id = ?').bind(pid, session.user_id).first();
+  return !!m;
+}
+
+const photoJson = (p) => ({ id: p.id, r2_key: p.r2_key, uploaded_by: p.uploaded_by, created_at: p.created_at });
+
+app.get('/api/projects/:id/photos', requireUser, async (c) => {
+  const project = await c.env.DB.prepare('SELECT id FROM projects WHERE id = ?').bind(c.req.param('id')).first();
+  if (!project) return fail(c, 'Not found.', 404);
+  const { results } = await c.env.DB.prepare('SELECT * FROM project_photos WHERE project_id = ? ORDER BY created_at').bind(project.id).all();
+  return ok(c, { photos: (results ?? []).map(photoJson) });
+});
+
+app.post('/api/projects/:id/photos', requireUser, async (c) => {
+  const pid = c.req.param('id');
+  const project = await c.env.DB.prepare('SELECT id FROM projects WHERE id = ?').bind(pid).first();
+  if (!project) return fail(c, 'Not found.', 404);
+  if (!(await canUploadPhoto(c, pid))) return fail(c, 'Join the project to upload photos.', 403);
+  const contentType = c.req.header('content-type') ?? '';
+  if (!ALLOWED_TYPES.some((t) => contentType.includes(t))) return fail(c, 'Only jpg/png/webp.', 415);
+  const buf = await c.req.arrayBuffer();
+  if (buf.byteLength > 2 * 1024 * 1024) return fail(c, 'Image too large (max 2MB).', 413);
+  const count = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM project_photos WHERE project_id = ?').bind(pid).first();
+  if (count.n >= MAX_PHOTOS) return fail(c, 'Album is full.', 400);
+  const id = uid('ph');
+  const key = `galleries/${pid}-${Date.now()}.jpg`;
+  await c.env.AVATARS.put(key, buf, { httpMetadata: { contentType } });
+  await c.env.DB.prepare('INSERT INTO project_photos (id, project_id, r2_key, uploaded_by, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(id, pid, key, c.get('session').user_id, nowISO()).run();
+  const photo = await c.env.DB.prepare('SELECT * FROM project_photos WHERE id = ?').bind(id).first();
+  return ok(c, { photo: { ...photoJson(photo), project_id: pid } }, 201);
+});
+
+app.delete('/api/photos/:id', requireUser, async (c) => {
+  const session = c.get('session');
+  const photo = await c.env.DB.prepare('SELECT * FROM project_photos WHERE id = ?').bind(c.req.param('id')).first();
+  if (!photo) return fail(c, 'Not found.', 404);
+  if (photo.uploaded_by !== session.user_id && !session.is_admin) return fail(c, 'Not yours.', 403);
+  await c.env.DB.prepare('DELETE FROM project_photos WHERE id = ?').bind(photo.id).run();
+  return ok(c, {});
+});
+
+app.get('/gallery/:key', async (c) => {
+  const obj = await c.env.AVATARS.get(`galleries/${c.req.param('key')}`);
+  if (!obj) return fail(c, 'Not found.', 404);
+  return new Response(obj.body, { headers: { 'Content-Type': obj.httpMetadata?.contentType ?? 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });
 });
 
 app.get('/avatars/:key', async (c) => {

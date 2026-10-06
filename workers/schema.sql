@@ -68,3 +68,11 @@ CREATE TABLE reminder_log (
   sent_at TEXT NOT NULL,
   PRIMARY KEY(project_id, start_at)
 );
+CREATE TABLE project_photos (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  r2_key TEXT NOT NULL,
+  uploaded_by TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX idx_photos_project ON project_photos(project_id);
