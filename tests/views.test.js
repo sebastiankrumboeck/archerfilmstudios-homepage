@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { intensityColor } from '../src/lib/intensity.js';
 import { buildMailto, monthSpan } from '../src/lib/calendar.js';
-import { renderProjectCard, renderProjectDetail, renderProjectForm } from '../src/views/projects.js';
+import { renderProjectCard, renderProjectDetail, renderProjectForm, renderReminderToggle } from '../src/views/projects.js';
 import { renderCalendar } from '../src/views/calendar.js';
 
 const PROJECT = { id: 'p1', title: 'Shoot', description: 'Desc', intensity: 4, location: 'Berlin', start_at: '2026-11-08T18:00:00Z', end_at: '2026-11-08T22:00:00Z', max_members: 8, member_count: 3, members: [] };
@@ -48,6 +48,21 @@ describe('views', () => {
     const bar = el.querySelector('a[href="/projects/?id=p1"]');
     expect(bar).toBeTruthy();
     expect(bar.textContent).toContain('Shoot');
+  });
+
+  it('reminder toggle shows state and fires the flipped value', () => {
+    const el = document.createElement('div');
+    const onToggle = vi.fn();
+    renderReminderToggle(el, { enabled: true, canToggle: true, onToggle });
+    expect(el.textContent).toMatch(/Turn reminders off/);
+    el.querySelector('[data-reminder-toggle]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onToggle).toHaveBeenCalledWith(false);
+    const off = document.createElement('div');
+    renderReminderToggle(off, { enabled: false, canToggle: true, onToggle: vi.fn() });
+    expect(off.textContent).toMatch(/Turn reminders on/);
+    const hidden = document.createElement('div');
+    renderReminderToggle(hidden, { enabled: true, canToggle: false, onToggle: vi.fn() });
+    expect(hidden.querySelector('[data-reminder-toggle]')).toBeNull();
   });
 
   it('admin edit button fires onEdit with the project', () => {

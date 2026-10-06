@@ -21,7 +21,8 @@ CREATE TABLE projects (
   max_members INTEGER,
   created_by TEXT NOT NULL,
   head_user_id TEXT,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  reminders_enabled INTEGER DEFAULT 1
 );
 CREATE TABLE memberships (
   project_id TEXT NOT NULL,

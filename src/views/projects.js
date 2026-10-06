@@ -142,6 +142,28 @@ export function renderProjectForm(el, { project = null, users = [], onSave = nul
   el.prepend(form);
 }
 
+export function renderReminderToggle(el, { enabled = true, canToggle = false, onToggle = null } = {}) {
+  el.innerHTML = '';
+  if (!canToggle) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.setAttribute('data-reminder-toggle', '');
+  btn.className = 'mt-4 border border-paper/20 px-4 py-2 text-xs uppercase';
+  btn.textContent = enabled ? 'Turn reminders off' : 'Turn reminders on';
+  btn.title = enabled ? 'Members get an email reminder before this shoot' : 'No reminder emails for this shoot';
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try {
+      await onToggle?.(!enabled);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  el.append(btn);
+}
+
 export function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }

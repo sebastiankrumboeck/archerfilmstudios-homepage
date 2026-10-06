@@ -5,9 +5,10 @@ const NOW = '2026-10-06T12:00:00.000Z';
 const SOON_START = '2026-10-07T18:00:00.000Z';
 const LATER_START = '2026-10-20T18:00:00.000Z';
 const ADMIN = { id: 's-a', user_id: 'u-admin', expires_at: '2030-01-01T00:00:00Z', is_admin: 1, is_kassier: 0 };
+const HEAD = { id: 's-h', user_id: 'u-head', expires_at: '2030-01-01T00:00:00Z', is_admin: 0, is_kassier: 0 };
 const MEMBER_SESSION = { id: 's-m', user_id: 'u-1', expires_at: '2030-01-01T00:00:00Z', is_admin: 0, is_kassier: 0 };
 
-const SOON = { id: 'p-soon', title: 'Night shoot', location: 'St. Pölten', start_at: SOON_START, end_at: '2026-10-07T22:00:00.000Z' };
+const SOON = { id: 'p-soon', title: 'Night shoot', location: 'St. Pölten', start_at: SOON_START, end_at: '2026-10-07T22:00:00.000Z', head_user_id: 'u-head' };
 const LATER = { id: 'p-later', title: 'Far trip', location: 'Wien', start_at: LATER_START, end_at: '2026-10-20T22:00:00.000Z' };
 const JOINED = [
   { email: 'a@x.at', name: 'Anna' },
@@ -19,7 +20,11 @@ function fakeDb({ projects = [SOON], logged = [], members = JOINED, runLog = nul
     prepare: (sql) => ({
       bind: (...args) => ({
         first: async () => {
-          if (sql.includes('FROM sessions')) return sql.includes('u-admin') || args[0] === 's-a' ? ADMIN : MEMBER_SESSION;
+          if (sql.includes('FROM sessions')) {
+            if (args[0] === 's-a') return ADMIN;
+            if (args[0] === 's-h') return HEAD;
+            return MEMBER_SESSION;
+          }
           if (sql.includes('FROM reminder_log')) {
             return logged.some(([pid, start]) => pid === args[0] && start === args[1]) ? { project_id: args[0] } : null;
           }
@@ -149,6 +154,48 @@ describe('shoot reminders', () => {
 
   it('app exposes a scheduled handler', () => {
     expect(typeof app.scheduled).toBe('function');
+  });
+
+  it('projects with reminders disabled are skipped without logging', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const ran = [];
+    try {
+      const res = await sendShootReminders(
+        envWith({ projects: [{ ...SOON, reminders_enabled: 0 }] }, (sql, args) => ran.push([sql, args])),
+        NOW,
+      );
+      expect(res).toEqual({ projects: 0, emails: 0, failed: 0 });
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(ran.some(([sql]) => sql.startsWith('INSERT INTO reminder_log'))).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('reminder toggle is head-or-admin only', async () => {
+    const body = (enabled) => ({ method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
+    const headRes = await app.request('/api/projects/p-soon/reminders', {
+      ...body(true), headers: { ...body(true).headers, Cookie: 'app-session=s-h' },
+    }, { DB: fakeDb({}) });
+    expect(headRes.status).toBe(200);
+    expect((await headRes.json()).data.reminders_enabled).toBe(1);
+    const adminRes = await app.request('/api/projects/p-soon/reminders', {
+      ...body(false), headers: { ...body(false).headers, Cookie: 'app-session=s-a' },
+    }, { DB: fakeDb({}) });
+    expect(adminRes.status).toBe(200);
+    const denied = await app.request('/api/projects/p-soon/reminders', {
+      ...body(true), headers: { ...body(true).headers, Cookie: 'app-session=s-m' },
+    }, { DB: fakeDb({}) });
+    expect(denied.status).toBe(403);
+    const missing = await app.request('/api/projects/nope/reminders', {
+      ...body(true), headers: { ...body(true).headers, Cookie: 'app-session=s-a' },
+    }, { DB: fakeDb({ projects: [] }) });
+    expect(missing.status).toBe(404);
+    const bad = await app.request('/api/projects/p-soon/reminders', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', Cookie: 'app-session=s-a' }, body: JSON.stringify({ enabled: 'maybe' }),
+    }, { DB: fakeDb({}) });
+    expect(bad.status).toBe(400);
   });
 
   it('without API key sends nothing and writes no log', async () => {

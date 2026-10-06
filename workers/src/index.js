@@ -692,6 +692,7 @@ export async function sendShootReminders(env, now, onlyProjectId = null) {
   let failed = 0;
   let reminded = 0;
   for (const project of projects) {
+    if (project.reminders_enabled === 0) continue;
     const logged = await env.DB.prepare('SELECT * FROM reminder_log WHERE project_id = ? AND start_at = ?')
       .bind(project.id, project.start_at).first();
     if (logged) continue;
@@ -732,6 +733,18 @@ app.post('/api/projects/:id/remind', requireAdmin, async (c) => {
   const result = await sendShootReminders(c.env, new Date().toISOString(), c.req.param('id'));
   if (!result) return fail(c, 'Not found.', 404);
   return ok(c, result);
+});
+
+app.patch('/api/projects/:id/reminders', requireUser, async (c) => {
+  const session = c.get('session');
+  const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(c.req.param('id')).first();
+  if (!project) return fail(c, 'Not found.', 404);
+  if (project.head_user_id !== session.user_id && !session.is_admin) return fail(c, 'Project head only.', 403);
+  const { enabled } = await c.req.json();
+  if (enabled !== true && enabled !== false && enabled !== 0 && enabled !== 1) return fail(c, 'Invalid value.', 400);
+  await c.env.DB.prepare('UPDATE projects SET reminders_enabled = ? WHERE id = ?')
+    .bind(enabled ? 1 : 0, project.id).run();
+  return ok(c, { reminders_enabled: enabled ? 1 : 0 });
 });
 
 app.scheduled = (event, env, ctx) => ctx.waitUntil(sendShootReminders(env, new Date().toISOString()));

@@ -1,6 +1,6 @@
 import { mountLayout } from '../layout.js';
 import { api } from '../api/client.js';
-import { renderProjectDetail, renderProjectGallery, renderProjects, renderProjectForm } from '../views/projects.js';
+import { renderProjectDetail, renderProjectGallery, renderProjects, renderProjectForm, renderReminderToggle } from '../views/projects.js';
 
 await mountLayout('projects');
 const view = document.querySelector('#app-view');
@@ -58,6 +58,16 @@ async function loadDetail(id) {
   } catch {
     me = null;
   }
+  const reminderBox = document.createElement('div');
+  view.append(reminderBox);
+  renderReminderToggle(reminderBox, {
+    enabled: data.project.reminders_enabled !== 0,
+    canToggle: !!me && (data.canEdit || data.head?.id === me.id),
+    onToggle: async (next) => {
+      await api(`/api/projects/${encodeURIComponent(id)}/reminders`, { method: 'PATCH', body: JSON.stringify({ enabled: next }) });
+      await loadDetail(id);
+    },
+  });
   const gallery = document.createElement('div');
   view.append(gallery);
   const renderGallery = async () => {
