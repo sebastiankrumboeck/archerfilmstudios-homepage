@@ -160,6 +160,8 @@ const owesForYear = (user, year) => year > Number(String(user.created_at ?? '').
 
 const CLUB_BILLING = { name: 'Archer FilmStudios', holder: 'Archer FilmStudios' };
 const INVOICE_SENDER = 'invoices@archerfilmstudios.com';
+const CONTACT_FROM = 'website@archerfilmstudios.com';
+const CONTACT_TO = 'archerfilmstudios@gmail.com';
 
 function euroText(cents) {
   return `${(cents / 100).toFixed(2).replace('.', ',')} €`;
@@ -532,6 +534,32 @@ app.get('/posters/:key', async (c) => {
   const obj = await c.env.AVATARS.get(`posters/${c.req.param('key')}`);
   if (!obj) return fail(c, 'Not found.', 404);
   return new Response(obj.body, { headers: { 'Content-Type': obj.httpMetadata?.contentType ?? 'image/jpeg', 'Cache-Control': 'public, max-age=86400' } });
+});
+
+app.post('/api/contact', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  if (body.website) return ok(c, { sent: true });
+  const name = String(body.name ?? '').trim();
+  const email = String(body.email ?? '').trim().toLowerCase();
+  const subject = String(body.subject ?? '').trim();
+  const message = String(body.message ?? '').trim();
+  if (!name || name.length > 100) return fail(c, 'Please tell us your name.', 400);
+  if (!isEmail(email)) return fail(c, 'Please enter a valid email address.', 400);
+  if (!subject || subject.length > 150) return fail(c, 'Please add a subject.', 400);
+  if (!message || message.length > 5000) return fail(c, 'Please write a message.', 400);
+  if (!c.env.RESEND_API_KEY) return fail(c, 'Email not configured.', 503);
+  const text = [`Name: ${name}`, `Email: ${email}`, '', message].join('\n');
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${c.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: CONTACT_FROM, to: CONTACT_TO, reply_to: email, subject: `[Website] ${subject}`, text }),
+    });
+    if (!res.ok) return fail(c, `Email failed (${res.status}).`, 502);
+    return ok(c, { sent: true });
+  } catch (err) {
+    return fail(c, err.message, 502);
+  }
 });
 
 app.get('/api/calendar', requireUser, async (c) => {

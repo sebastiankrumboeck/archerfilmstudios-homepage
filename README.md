@@ -21,5 +21,5 @@ Cinematic film & photography club site (Vite multi-page + Cloudflare Workers).
    - `npx wrangler secret put RESEND_API_KEY` — Resend API key for invoice emails
    - `npx wrangler secret put ARCHER_IBAN` — club IBAN used in invoice emails
 
-Contact is mailto-only (`hello@archerfilmstudios`) — no email backend needed.
+Contact is a form posting to `/api/contact` (Worker sends via Resend to `archerfilmstudios@gmail.com`).
 Vorstand is static in `src/data/vorstand.js`.
