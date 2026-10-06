@@ -149,6 +149,21 @@ describe('vorstand view', () => {
     expect(row.querySelector('[data-photo-status]').textContent).toMatch(/choose a file/i);
   });
 
+  it('kassier toggle fires onKassier to grant and revoke', () => {
+    const el = document.createElement('div');
+    const onKassier = vi.fn();
+    const users = [
+      { ...USERS[0], is_kassier: true },
+      { ...USERS[1], is_kassier: false },
+    ];
+    renderVorstand(el, users, { isAdmin: true, onKassier });
+    const rows = Array.from(el.querySelectorAll('[data-user]'));
+    rows.find((r) => r.textContent.includes('Ben')).querySelector('[data-kassier-grant]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onKassier).toHaveBeenCalledWith(users[1], { is_kassier: true });
+    rows.find((r) => r.textContent.includes('Ava')).querySelector('[data-kassier-revoke]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onKassier).toHaveBeenCalledWith(users[0], { is_kassier: false });
+  });
+
   it('link button fires onLink with slot and user id, unlink fires onUnlink', () => {
     const el = document.createElement('div');
     const onLink = vi.fn();

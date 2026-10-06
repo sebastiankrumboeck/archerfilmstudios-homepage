@@ -1,0 +1,112 @@
+import { describe, expect, it, vi } from 'vitest';
+import { euroToCents, formatEuro, renderAllInvoices, renderForbidden, renderInvoiceDetail, renderInvoiceForm, renderMyInvoices } from '../src/views/finanzen.js';
+import { refreshAuthLink } from '../src/layout.js';
+import { CLUB } from '../src/data/club.js';
+
+const INV = { id: 'i-1', user_id: 'u-2', user_name: 'Mara', year: 2026, amount_cents: 1200, reason: 'Mitgliedsbeitrag 2026', status: 'open', created_at: '2026-01-05T00:00:00Z', paid_at: null, paid_method: null };
+
+describe('finanzen views', () => {
+  it('formats Euro de-AT and parses back', () => {
+    expect(formatEuro(1200)).toBe('12,00 €');
+    expect(formatEuro(1250)).toBe('12,50 €');
+    expect(euroToCents('12,00')).toBe(1200);
+    expect(euroToCents('12')).toBe(1200);
+    expect(euroToCents('12.5')).toBe(1250);
+  });
+
+  it('my invoices show year, reason, amount, status', () => {
+    const el = document.createElement('div');
+    const onOpen = vi.fn();
+    renderMyInvoices(el, [INV], { onOpen });
+    expect(el.textContent).toContain('2026');
+    expect(el.textContent).toContain('Mitgliedsbeitrag 2026');
+    expect(el.textContent).toContain('12,00 €');
+    expect(el.textContent).toContain('Offen');
+    el.querySelector('[data-open]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onOpen).toHaveBeenCalledWith(INV);
+  });
+
+  it('all invoices show member names plus status and year filters', () => {
+    const el = document.createElement('div');
+    renderAllInvoices(el, [INV], { onPay: vi.fn(), onCancel: vi.fn(), onOpen: vi.fn(), onFilter: vi.fn() });
+    expect(el.textContent).toContain('Mara');
+    expect(el.querySelector('select[data-filter-status]')).toBeTruthy();
+    expect(el.querySelector('select[data-filter-year]')).toBeTruthy();
+  });
+
+  it('pay and cancel buttons fire with the invoice', () => {
+    const el = document.createElement('div');
+    const onPay = vi.fn();
+    const onCancel = vi.fn();
+    renderAllInvoices(el, [INV], { onPay, onCancel, onOpen: vi.fn(), onFilter: vi.fn() });
+    el.querySelector('[data-pay-cash]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onPay).toHaveBeenCalledWith(INV, 'cash');
+    el.querySelector('[data-pay-transfer]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onPay).toHaveBeenCalledWith(INV, 'transfer');
+    el.querySelector('[data-cancel]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onCancel).toHaveBeenCalledWith(INV);
+  });
+
+  it('invoice detail shows club, IBAN, amount, reason, reference', () => {
+    const el = document.createElement('div');
+    renderInvoiceDetail(el, { invoice: INV, memberName: 'Mara' });
+    expect(el.textContent).toContain('Archer FilmStudios');
+    expect(el.textContent).toContain(CLUB.iban);
+    expect(el.textContent).toContain('12,00 €');
+    expect(el.textContent).toContain('Mitgliedsbeitrag 2026');
+    expect(el.textContent).toContain('2026-u-2');
+  });
+
+  it('invoice form prefills year, 12.00 and the template reason', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, data: { invoice: INV } }) });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const el = document.createElement('div');
+      const onCreate = vi.fn();
+      const users = [{ id: 'u-2', name: 'Mara' }];
+      renderInvoiceForm(el, { users, onCreate });
+      const form = el.querySelector('form');
+      expect(form.querySelector('[name="year"]').value).toBe(String(new Date().getFullYear()));
+      expect(form.querySelector('[name="amount"]').value).toBe('12.00');
+      form.querySelector('[name="user_id"]').value = 'u-2';
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      const [url, opts] = fetchMock.mock.calls[0];
+      expect(url).toBe('/api/invoices');
+      expect(opts.method).toBe('POST');
+      expect(JSON.parse(opts.body)).toEqual({ user_id: 'u-2', year: new Date().getFullYear(), amount_cents: 1200, reason: `Mitgliedsbeitrag ${new Date().getFullYear()}` });
+      await vi.waitFor(() => expect(onCreate).toHaveBeenCalled());
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('forbidden view states Kassier only', () => {
+    const el = document.createElement('div');
+    renderForbidden(el);
+    expect(el.textContent).toContain('Kassier only.');
+  });
+
+  it('escapes HTML in reasons and names', () => {
+    const el = document.createElement('div');
+    renderMyInvoices(el, [{ ...INV, reason: '<img src=x onerror=alert(1)>' }], { onOpen: vi.fn() });
+    expect(el.querySelector('img[src="x"]')).toBeNull();
+    expect(el.textContent).toContain('<img src=x onerror=alert(1)>');
+  });
+
+  it('kassier nav link shows only with the flag', async () => {
+    const meWith = (flag) => vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, data: { user: { is_kassier: flag } } }) });
+    document.body.innerHTML = '<a href="/finanzen/" data-private-link data-kassier-link>Finanzen</a>';
+    try {
+      vi.stubGlobal('fetch', meWith(true));
+      await refreshAuthLink();
+      expect(document.querySelector('[data-kassier-link]').style.display).toBe('');
+      vi.stubGlobal('fetch', meWith(false));
+      await refreshAuthLink();
+      expect(document.querySelector('[data-kassier-link]').style.display).toBe('none');
+    } finally {
+      vi.unstubAllGlobals();
+      document.body.innerHTML = '';
+    }
+  });
+});

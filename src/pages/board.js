@@ -50,6 +50,13 @@ async function load() {
       });
       await load();
     },
+    onKassier: async (user, { is_kassier }) => {
+      await api(`/api/users/${user.id}/kassier`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_kassier }),
+      });
+      await load();
+    },
     onLink: async (slot, userId) => {
       await api('/api/vorstand-links', {
         method: 'PUT',

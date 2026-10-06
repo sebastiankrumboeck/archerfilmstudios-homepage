@@ -51,7 +51,7 @@ function linkedSlotCard(u, title, { isAdmin, onUnlink, slot }) {
   return card;
 }
 
-export function renderVorstand(el, users = [], { isAdmin = false, links = {}, onVorstand = null, onPhoto = null, onRename = null, onAdmin = null, onLink = null, onUnlink = null } = {}) {
+export function renderVorstand(el, users = [], { isAdmin = false, links = {}, onVorstand = null, onPhoto = null, onRename = null, onAdmin = null, onLink = null, onUnlink = null, onKassier = null } = {}) {
   el.innerHTML = '';
   const byId = new Map(users.map((u) => [u.id, u]));
   const claimed = new Set(Object.values(links ?? {}));
@@ -111,6 +111,9 @@ export function renderVorstand(el, users = [], { isAdmin = false, links = {}, on
         ${u.is_admin
           ? '<button type="button" data-demote class="border border-paper/20 px-3 py-1 text-xs uppercase">Remove admin</button>'
           : '<button type="button" data-promote class="border border-amber px-3 py-1 text-xs uppercase">Make admin</button>'}
+        ${u.is_kassier
+          ? '<button type="button" data-kassier-revoke class="border border-paper/20 px-3 py-1 text-xs uppercase">Revoke Kassier</button>'
+          : '<button type="button" data-kassier-grant class="border border-amber px-3 py-1 text-xs uppercase">Make Kassier</button>'}
         <label class="text-xs uppercase text-paper/60">Photo <input data-photo type="file" accept="image/jpeg,image/png,image/webp" /></label>
         <button type="button" data-upload class="border border-amber px-3 py-1 text-xs uppercase">Upload</button>
         <span data-photo-status class="text-xs text-paper/60"></span>`;
@@ -167,6 +170,20 @@ export function renderVorstand(el, users = [], { isAdmin = false, links = {}, on
       row.querySelector('[data-demote]')?.addEventListener('click', async () => {
         try {
           await onAdmin?.(u, { is_admin: false });
+        } catch (err) {
+          manage.querySelector('[data-error]').textContent = err.message;
+        }
+      });
+      row.querySelector('[data-kassier-grant]')?.addEventListener('click', async () => {
+        try {
+          await onKassier?.(u, { is_kassier: true });
+        } catch (err) {
+          manage.querySelector('[data-error]').textContent = err.message;
+        }
+      });
+      row.querySelector('[data-kassier-revoke]')?.addEventListener('click', async () => {
+        try {
+          await onKassier?.(u, { is_kassier: false });
         } catch (err) {
           manage.querySelector('[data-error]').textContent = err.message;
         }

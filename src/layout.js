@@ -9,14 +9,15 @@ const NAV = [
   ['/calendar/', 'Calendar', true],
   ['/board/', 'Board', true],
   ['/members/', 'Members', true],
+  ['/finanzen/', 'Finanzen', true, 'kassier'],
   ['/contact/', 'Contact', false],
 ];
 
 export function headerHTML(active) {
   const render = (extra = '') =>
     NAV.map(
-      ([href, label, priv]) =>
-        `<a class="transition-colors hover:text-amber" href="${href}"${priv ? ' data-private-link' : ''}${extra}${href === activeHref(active) ? ' aria-current="page"' : ''}>${label}</a>`,
+      ([href, label, priv, role]) =>
+        `<a class="transition-colors hover:text-amber" href="${href}"${priv ? ' data-private-link' : ''}${role ? ` data-${role}-link` : ''}${extra}${href === activeHref(active) ? ' aria-current="page"' : ''}>${label}</a>`,
     ).join('');
   const desktop = render();
   const mobile = render();
@@ -75,6 +76,9 @@ export async function refreshAuthLink(root = document) {
   }
   for (const link of root.querySelectorAll('[data-private-link]')) {
     link.style.display = me ? '' : 'none';
+  }
+  for (const link of root.querySelectorAll('[data-kassier-link]')) {
+    link.style.display = me?.is_kassier ? '' : 'none';
   }
   for (const link of root.querySelectorAll('[data-auth-link]')) {
     if (me) {
