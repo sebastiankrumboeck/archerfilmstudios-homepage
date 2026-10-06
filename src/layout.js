@@ -10,6 +10,7 @@ const NAV = [
   ['/board/', 'Board', true],
   ['/members/', 'Members', true],
   ['/finanzen/', 'Finanzen', true, 'kassier'],
+  ['/schnuppern/', 'Schnuppern', false],
   ['/contact/', 'Contact', false],
 ];
 
