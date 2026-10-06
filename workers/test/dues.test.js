@@ -73,6 +73,29 @@ describe('dues endpoints', () => {
     expect(res.status).toBe(403);
     expect((await res.json()).error).toBe('Kassier only.');
   });
+  it('delete removes paid invoices and unlinks corrections, rejects open ones', async () => {
+    const ran = [];
+    const db = fakeDb({ session: KASSIER_SESSION, invoiceRow: PAID_INV });
+    const origPrepare = db.prepare;
+    db.prepare = (sql) => {
+      const q = origPrepare(sql);
+      return { bind: (...args) => {
+        const b = q.bind(...args);
+        return { ...b, run: async () => { ran.push([sql, args]); return {}; } };
+      } };
+    };
+    const res = await app.request('/api/invoices/i-2', { method: 'DELETE', headers: kas }, { DB: db });
+    expect(res.status).toBe(200);
+    expect(ran.some(([sql]) => sql === 'DELETE FROM invoices WHERE id = ?')).toBe(true);
+    expect(ran.some(([sql]) => sql.includes('SET corrected_by = NULL'))).toBe(true);
+    expect(ran.some(([sql]) => sql.includes('SET credit_of = NULL'))).toBe(true);
+    const openRes = await app.request('/api/invoices/i-1', { method: 'DELETE', headers: kas }, { DB: fakeDb({ session: KASSIER_SESSION, invoiceRow: OPEN_INV }) });
+    expect(openRes.status).toBe(400);
+    const missing = await app.request('/api/invoices/nope', { method: 'DELETE', headers: kas }, { DB: fakeDb({ session: KASSIER_SESSION, invoiceRow: null }) });
+    expect(missing.status).toBe(404);
+    const denied = await app.request('/api/invoices/i-2', { method: 'DELETE', headers: mem }, { DB: fakeDb({ session: MEMBER_SESSION }) });
+    expect(denied.status).toBe(403);
+  });
   it('admin without flag gets 403 on kassier endpoints', async () => {
     const cases = [
       ['GET', '/api/invoices', false],

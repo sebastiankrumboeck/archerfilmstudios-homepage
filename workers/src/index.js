@@ -407,6 +407,16 @@ app.post('/api/invoices/:id/correct', requireKassier, async (c) => {
   return ok(c, { invoice, email: { sent: email.ok, ...(email.ok ? {} : { error: email.error }) } }, 201);
 });
 
+app.delete('/api/invoices/:id', requireKassier, async (c) => {
+  const inv = await c.env.DB.prepare('SELECT * FROM invoices WHERE id = ?').bind(c.req.param('id')).first();
+  if (!inv) return fail(c, 'Not found.', 404);
+  if (inv.status === 'open') return fail(c, 'Storniere offene Rechnungen zuerst.', 400);
+  await c.env.DB.prepare('UPDATE invoices SET corrected_by = NULL WHERE corrected_by = ?').bind(inv.id).run();
+  await c.env.DB.prepare('UPDATE invoices SET credit_of = NULL WHERE credit_of = ?').bind(inv.id).run();
+  await c.env.DB.prepare('DELETE FROM invoices WHERE id = ?').bind(inv.id).run();
+  return ok(c, {});
+});
+
 app.patch('/api/invoices/:id/cancel', requireKassier, async (c) => {
   const inv = await c.env.DB.prepare('SELECT * FROM invoices WHERE id = ?').bind(c.req.param('id')).first();
   if (!inv) return fail(c, 'Not found.', 404);

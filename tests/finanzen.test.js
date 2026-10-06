@@ -71,6 +71,19 @@ describe('finanzen views', () => {
     expect(onExport).toHaveBeenCalledTimes(1);
   });
 
+  it('paid rows offer delete, open rows do not', () => {
+    const el = document.createElement('div');
+    const onDeleteInvoice = vi.fn();
+    const paid = { ...INV, status: 'paid', paid_method: 'cash' };
+    renderAllInvoices(el, [paid, INV], { onPay: vi.fn(), onCancel: vi.fn(), onOpen: vi.fn(), onFilter: vi.fn(), onDeleteInvoice });
+    const rows = Array.from(el.querySelectorAll('[data-invoice-row]'));
+    expect(rows).toHaveLength(2);
+    expect(rows[0].querySelector('[data-delete-invoice]')).toBeTruthy();
+    expect(rows[1].querySelector('[data-delete-invoice]')).toBeNull();
+    rows[0].querySelector('[data-delete-invoice]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onDeleteInvoice).toHaveBeenCalledWith(paid);
+  });
+
   it('correct button reveals a prefilled form that submits amount and reason', async () => {
     const el = document.createElement('div');
     const onCorrect = vi.fn();

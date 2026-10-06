@@ -155,6 +155,15 @@ async function showAll(filter = {}) {
         alert(err.message);
       }
     },
+    onDeleteInvoice: async (inv) => {
+      if (!confirm(`Rechnung "${inv.reason}" wirklich löschen?`)) return;
+      try {
+        await api(`/api/invoices/${inv.id}`, { method: 'DELETE' });
+        await showAll(filter);
+      } catch (err) {
+        alert(err.message);
+      }
+    },
   });
   view.append(list);
   const gen = document.createElement('div');

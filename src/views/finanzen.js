@@ -40,7 +40,7 @@ export function renderMyInvoices(el, invoices = [], { onOpen = null } = {}) {
   el.append(table);
 }
 
-export function renderAllInvoices(el, invoices = [], { status = '', year = '', method = '', onPay = null, onCancel = null, onOpen = null, onFilter = null, onExport = null, onCorrect = null } = {}) {
+export function renderAllInvoices(el, invoices = [], { status = '', year = '', method = '', onPay = null, onCancel = null, onOpen = null, onFilter = null, onExport = null, onCorrect = null, onDeleteInvoice = null } = {}) {
   el.innerHTML = '';
   const controls = document.createElement('div');
   controls.className = 'mb-4 flex flex-wrap gap-3';
@@ -83,6 +83,7 @@ export function renderAllInvoices(el, invoices = [], { status = '', year = '', m
   table.className = 'grid gap-3';
   for (const inv of invoices) {
     const row = document.createElement('div');
+    row.setAttribute('data-invoice-row', inv.id);
     row.className = 'flex flex-wrap items-center gap-3 border border-paper/15 p-3 text-sm';
     row.innerHTML = `
       <button type="button" data-open class="font-semibold hover:text-amber">${esc(inv.user_name ?? inv.user_id)} — ${esc(inv.reason)} (${esc(String(inv.year))})</button>
@@ -91,11 +92,12 @@ export function renderAllInvoices(el, invoices = [], { status = '', year = '', m
       <span class="text-xs uppercase tracking-widest text-paper/60">${esc(inv.status === 'paid' ? (METHOD_DE[inv.paid_method] ?? inv.paid_method ?? '—') : '—')}</span>
       ${inv.corrected_by ? `<a class="text-xs text-amber" href="/finanzen/?id=${encodeURIComponent(inv.corrected_by)}">Korrigiert → ${esc(String(inv.corrected_by).slice(0, 8))}</a>` : ''}
       ${inv.credit_of ? `<a class="text-xs text-amber" href="/finanzen/?id=${encodeURIComponent(inv.credit_of)}">Korrektur von ${esc(String(inv.credit_of).slice(0, 8))}</a>` : ''}
-      ${inv.status === 'open' ? '<button type="button" data-pay-cash class="border border-amber px-3 py-1 text-xs uppercase">Bar bezahlt</button><button type="button" data-pay-transfer class="border border-amber px-3 py-1 text-xs uppercase">Überwiesen</button><button type="button" data-cancel class="border border-paper/20 px-3 py-1 text-xs uppercase">Stornieren</button><button type="button" data-correct class="border border-paper/20 px-3 py-1 text-xs uppercase">Korrigieren</button>' : ''}`;
+      ${inv.status === 'open' ? '<button type="button" data-pay-cash class="border border-amber px-3 py-1 text-xs uppercase">Bar bezahlt</button><button type="button" data-pay-transfer class="border border-amber px-3 py-1 text-xs uppercase">Überwiesen</button><button type="button" data-cancel class="border border-paper/20 px-3 py-1 text-xs uppercase">Stornieren</button><button type="button" data-correct class="border border-paper/20 px-3 py-1 text-xs uppercase">Korrigieren</button>' : '<button type="button" data-delete-invoice class="border border-paper/20 px-3 py-1 text-xs uppercase">Löschen</button>'}`;
     row.querySelector('[data-open]')?.addEventListener('click', () => onOpen?.(inv));
     row.querySelector('[data-pay-cash]')?.addEventListener('click', () => onPay?.(inv, 'cash'));
     row.querySelector('[data-pay-transfer]')?.addEventListener('click', () => onPay?.(inv, 'transfer'));
     row.querySelector('[data-cancel]')?.addEventListener('click', () => onCancel?.(inv));
+    row.querySelector('[data-delete-invoice]')?.addEventListener('click', () => onDeleteInvoice?.(inv));
     row.querySelector('[data-correct]')?.addEventListener('click', () => {
       row.querySelector('[data-correct-form]')?.remove();
       const form = document.createElement('form');
