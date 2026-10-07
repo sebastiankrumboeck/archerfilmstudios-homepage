@@ -779,6 +779,68 @@ app.delete('/api/decisions/:id', requireAdmin, async (c) => {
   return ok(c, {});
 });
 
+// --- Vorstand archive (board-only documents, R2-backed) ---
+const ARCHIVE_TYPES = {
+  'application/pdf': 'pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+const MAX_ARCHIVE_BYTES = 10 * 1024 * 1024;
+
+function requireBoard(c) {
+  const s = c.get('session');
+  if (!s.is_admin && !s.is_vorstand) return fail(c, 'Vorstand only.', 403);
+  return null;
+}
+
+app.get('/api/archive', requireUser, async (c) => {
+  const denied = requireBoard(c);
+  if (denied) return denied;
+  const { results } = await c.env.DB.prepare('SELECT id, title, uploaded_by, created_at FROM documents ORDER BY created_at DESC').all();
+  return ok(c, { documents: results ?? [] });
+});
+
+app.post('/api/archive', requireUser, async (c) => {
+  const denied = requireBoard(c);
+  if (denied) return denied;
+  const title = String(c.req.query('title') ?? '').trim();
+  if (!title || title.length > 150) return fail(c, 'Title is required.', 400);
+  const contentType = (c.req.header('content-type') ?? '').split(';')[0].trim();
+  const ext = ARCHIVE_TYPES[contentType];
+  if (!ext) return fail(c, 'Only PDF, Word or images.', 415);
+  const buf = await c.req.arrayBuffer();
+  if (buf.byteLength > MAX_ARCHIVE_BYTES) return fail(c, 'File too large (max 10MB).', 413);
+  const id = uid('doc');
+  const key = `documents/${id}.${ext}`;
+  await c.env.AVATARS.put(key, buf, { httpMetadata: { contentType } });
+  await c.env.DB.prepare('INSERT INTO documents (id, title, r2_key, content_type, uploaded_by, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(id, title, key, contentType, c.get('session').user_id, nowISO()).run();
+  const doc = await c.env.DB.prepare('SELECT id, title, uploaded_by, created_at FROM documents WHERE id = ?').bind(id).first();
+  return ok(c, { document: doc }, 201);
+});
+
+app.delete('/api/archive/:id', requireUser, async (c) => {
+  const denied = requireBoard(c);
+  if (denied) return denied;
+  const doc = await c.env.DB.prepare('SELECT * FROM documents WHERE id = ?').bind(c.req.param('id')).first();
+  if (!doc) return fail(c, 'Not found.', 404);
+  await c.env.AVATARS.delete(doc.r2_key);
+  await c.env.DB.prepare('DELETE FROM documents WHERE id = ?').bind(doc.id).run();
+  return ok(c, {});
+});
+
+app.get('/api/archive/:id/file', requireUser, async (c) => {
+  const denied = requireBoard(c);
+  if (denied) return denied;
+  const doc = await c.env.DB.prepare('SELECT * FROM documents WHERE id = ?').bind(c.req.param('id')).first();
+  if (!doc) return fail(c, 'Not found.', 404);
+  const obj = await c.env.AVATARS.get(doc.r2_key);
+  if (!obj) return fail(c, 'Not found.', 404);
+  return new Response(obj.body, { headers: { 'Content-Type': doc.content_type, 'Cache-Control': 'private, max-age=3600' } });
+});
+
 app.get('/avatars/:key', async (c) => {
   const obj = await c.env.AVATARS.get(`avatars/${c.req.param('key')}`);
   if (!obj) return fail(c, 'Not found.', 404);

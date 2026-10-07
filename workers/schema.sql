@@ -93,6 +93,14 @@ CREATE TABLE decisions (
   recorded_by TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE TABLE documents (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  r2_key TEXT NOT NULL,
+  content_type TEXT NOT NULL,
+  uploaded_by TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE minutes (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
