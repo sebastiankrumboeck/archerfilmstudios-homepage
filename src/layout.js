@@ -10,6 +10,7 @@ const NAV = [
   ['/board/', 'Board', true],
   ['/members/', 'Members', true],
   ['/mitschriften/', 'Mitschriften', true],
+  ['/versammlung/', 'Versammlung', true, 'admin'],
   ['/finanzen/', 'Finanzen', true, 'kassier'],
   ['/contact/', 'Contact', false],
 ];
@@ -80,6 +81,9 @@ export async function refreshAuthLink(root = document) {
   }
   for (const link of root.querySelectorAll('[data-kassier-link]')) {
     link.style.display = me?.is_kassier ? '' : 'none';
+  }
+  for (const link of root.querySelectorAll('[data-admin-link]')) {
+    link.style.display = me?.is_admin ? '' : 'none';
   }
   for (const link of root.querySelectorAll('[data-auth-link]')) {
     if (me) {
