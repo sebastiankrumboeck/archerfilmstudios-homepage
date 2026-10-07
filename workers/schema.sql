@@ -79,6 +79,12 @@ CREATE TABLE project_photos (
   created_at TEXT NOT NULL
 );
 CREATE INDEX idx_photos_project ON project_photos(project_id);
+CREATE TABLE assembly_attendance (
+  year INTEGER NOT NULL,
+  user_id TEXT NOT NULL,
+  present INTEGER DEFAULT 1,
+  PRIMARY KEY(year, user_id)
+);
 CREATE TABLE minutes (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,

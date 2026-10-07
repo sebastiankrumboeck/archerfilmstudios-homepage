@@ -321,29 +321,68 @@ app.get('/api/invoices/export', requireKassier, async (c) => {
   });
 });
 
+export async function invoiceSummary(db, year) {
+  const open = await db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS sum FROM invoices WHERE status = 'open' AND year = ?")
+    .bind(year).first();
+  const paid = await db.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS sum, COALESCE(SUM(CASE WHEN paid_method = 'cash' THEN amount_cents ELSE 0 END), 0) AS cash, COALESCE(SUM(CASE WHEN paid_method = 'transfer' THEN amount_cents ELSE 0 END), 0) AS transfer FROM invoices WHERE status = 'paid' AND year = ?")
+    .bind(year).first();
+  const cancelled = await db.prepare("SELECT COUNT(*) AS n FROM invoices WHERE status = 'cancelled' AND year = ?")
+    .bind(year).first();
+  return {
+    year,
+    invoiced_cents: open.sum + paid.sum,
+    paid_cents: paid.sum,
+    open_cents: open.sum,
+    paid_cash_cents: paid.cash,
+    paid_transfer_cents: paid.transfer,
+    count_open: open.n,
+    count_paid: paid.n,
+    count_cancelled: cancelled.n,
+  };
+}
+
 app.get('/api/invoices/summary', requireKassier, async (c) => {
   const rawYear = c.req.query('year');
   const year = rawYear == null || rawYear === '' ? new Date().getFullYear() : Number(rawYear);
   if (!Number.isInteger(year) || year < 2000 || year > 2100) return fail(c, 'Invalid year.', 400);
-  const open = await c.env.DB.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS sum FROM invoices WHERE status = 'open' AND year = ?")
-    .bind(year).first();
-  const paid = await c.env.DB.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS sum, COALESCE(SUM(CASE WHEN paid_method = 'cash' THEN amount_cents ELSE 0 END), 0) AS cash, COALESCE(SUM(CASE WHEN paid_method = 'transfer' THEN amount_cents ELSE 0 END), 0) AS transfer FROM invoices WHERE status = 'paid' AND year = ?")
-    .bind(year).first();
-  const cancelled = await c.env.DB.prepare("SELECT COUNT(*) AS n FROM invoices WHERE status = 'cancelled' AND year = ?")
-    .bind(year).first();
+  return ok(c, { summary: await invoiceSummary(c.env.DB, year) });
+});
+
+// --- Generalversammlung pack (admin aggregates + attendance) ---
+app.get('/api/assembly-pack', requireAdmin, async (c) => {
+  const rawYear = c.req.query('year');
+  const year = rawYear == null || rawYear === '' ? new Date().getFullYear() : Number(rawYear);
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) return fail(c, 'Invalid year.', 400);
+  const { results: users } = await c.env.DB.prepare('SELECT * FROM users').all();
+  const { results: projects } = await c.env.DB.prepare('SELECT * FROM projects WHERE start_at >= ? AND start_at < ?')
+    .bind(`${year}-01-01`, `${year + 1}-01-01`).all();
+  const withCounts = await withMemberCounts(c.env.DB, projects ?? []);
+  const { results: openInvoices } = await c.env.DB.prepare("SELECT i.*, u.name AS user_name FROM invoices i LEFT JOIN users u ON u.id = i.user_id WHERE i.status = 'open' AND i.year = ? ORDER BY i.created_at")
+    .bind(year).all();
+  const { results: attendance } = await c.env.DB.prepare('SELECT user_id, present FROM assembly_attendance WHERE year = ?')
+    .bind(year).all();
   return ok(c, {
-    summary: {
+    pack: {
       year,
-      invoiced_cents: open.sum + paid.sum,
-      paid_cents: paid.sum,
-      open_cents: open.sum,
-      paid_cash_cents: paid.cash,
-      paid_transfer_cents: paid.transfer,
-      count_open: open.n,
-      count_paid: paid.n,
-      count_cancelled: cancelled.n,
+      member_count: (users ?? []).length,
+      new_members: (users ?? []).filter((u) => String(u.created_at ?? '').startsWith(String(year))).map((u) => ({ id: u.id, name: u.name })),
+      projects: withCounts.map((p) => ({ id: p.id, title: p.title, start_at: p.start_at, member_count: p.member_count })),
+      finance: await invoiceSummary(c.env.DB, year),
+      open_invoices: (openInvoices ?? []).map((r) => ({ id: r.id, user_name: r.user_name ?? r.user_id, amount_cents: r.amount_cents, reason: r.reason, created_at: r.created_at })),
+      attendance: (attendance ?? []).map((r) => ({ user_id: r.user_id, present: r.present })),
     },
   });
+});
+
+app.patch('/api/assembly-pack/attendance', requireAdmin, async (c) => {
+  const { year, present } = await c.req.json();
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) return fail(c, 'Invalid year.', 400);
+  if (!Array.isArray(present)) return fail(c, 'Present must be a list.', 400);
+  await c.env.DB.prepare('DELETE FROM assembly_attendance WHERE year = ?').bind(year).run();
+  for (const user_id of present) {
+    await c.env.DB.prepare('INSERT INTO assembly_attendance (year, user_id, present) VALUES (?, ?, ?)').bind(year, user_id, 1).run();
+  }
+  return ok(c, { saved: present.length });
 });
 
 app.post('/api/invoices', requireKassier, async (c) => {
