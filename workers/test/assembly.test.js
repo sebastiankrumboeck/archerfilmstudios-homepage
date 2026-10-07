@@ -10,9 +10,27 @@ const json = { 'Content-Type': 'application/json' };
 const A1 = { id: 'a-1', title: 'GV Frühjahr', held_on: '2026-03-15', minutes_id: 'm-1', created_at: '2026-03-01T00:00:00Z' };
 const A2 = { id: 'a-2', title: 'GV Herbst', held_on: '2026-10-15', minutes_id: null, created_at: '2026-10-01T00:00:00Z' };
 const MINUTE = { id: 'm-1', title: 'Protokoll Frühjahr', r2_key: 'minutes/m-1.pdf', uploaded_by: 'u-7', created_at: '2026-03-16T00:00:00Z' };
+const USERS = [
+  { id: 'u-1', name: 'Anna', created_at: '2024-03-01T00:00:00Z' },
+  { id: 'u-2', name: 'Ben', created_at: '2026-05-01T00:00:00Z' },
+];
+const PROJECTS = [{ id: 'p1', title: 'Shoot', start_at: '2026-06-01T18:00:00Z', end_at: '2026-06-01T22:00:00Z' }];
+const MEMBERSHIPS = [{ project_id: 'p1', user_id: 'u-1' }, { project_id: 'p1', user_id: 'u-2' }];
+const OPEN = { id: 'i-1', user_id: 'u-1', user_name: 'Anna', year: 2026, amount_cents: 1200, reason: 'Beitrag', status: 'open', created_at: '2026-01-05T00:00:00Z', paid_at: null };
+const PAID = { id: 'i-2', user_id: 'u-2', user_name: 'Ben', year: 2026, amount_cents: 1200, reason: 'Beitrag', status: 'paid', created_at: '2026-01-06T00:00:00Z', paid_at: '2026-02-01T00:00:00Z', paid_method: 'cash' };
 
-function fakeDb({ session = ADMIN, assemblies = [A1, A2], assemblyRow = A1, minuteRow = MINUTE, runLog = null } = {}) {
-  const store = { assemblies: assemblies.map((r) => ({ ...r })), attendance: [{ assembly_id: 'a-1', user_id: 'u-1', present: 1 }] };
+function fakeDb({ session = ADMIN, assemblies = [A1, A2], assemblyRow = A1, minuteRow = MINUTE, runLog = null, users = USERS, projects = PROJECTS, memberships = MEMBERSHIPS, invoices = [OPEN, PAID], attendance = [{ assembly_id: 'a-1', user_id: 'u-1', present: 1 }] } = {}) {
+  const store = { assemblies: assemblies.map((r) => ({ ...r })), attendance: attendance.map((r) => ({ ...r })) };
+  const inYear = (rows, args) => {
+    const year = args.find((a) => Number.isInteger(a));
+    return year === undefined ? rows : rows.filter((r) => r.year === year);
+  };
+  const sums = (rows) => ({
+    n: rows.length,
+    sum: rows.reduce((n, r) => n + r.amount_cents, 0),
+    cash: rows.filter((r) => r.paid_method === 'cash').reduce((n, r) => n + r.amount_cents, 0),
+    transfer: rows.filter((r) => r.paid_method === 'transfer').reduce((n, r) => n + r.amount_cents, 0),
+  });
   const handler = (sql) => ({
     bind: (...args) => ({
       first: async () => {
@@ -23,10 +41,31 @@ function fakeDb({ session = ADMIN, assemblies = [A1, A2], assemblyRow = A1, minu
         if (sql.includes('FROM minutes') && sql.includes('id = ?')) {
           return minuteRow && args[0] === minuteRow.id ? minuteRow : null;
         }
+        if (sql.includes('FROM invoices') && sql.includes("status = 'open'")) return sums(inYear(invoices.filter((r) => r.status === 'open'), args));
+        if (sql.includes('FROM invoices') && sql.includes("status = 'paid'")) return sums(inYear(invoices.filter((r) => r.status === 'paid'), args));
+        if (sql.includes('FROM invoices') && sql.includes("status = 'cancelled'")) {
+          return { n: inYear(invoices.filter((r) => r.status === 'cancelled'), args).length };
+        }
+        if (sql.includes('COUNT(*) AS n FROM memberships')) {
+          return { n: memberships.filter((m) => m.project_id === args[0]).length };
+        }
         return null;
       },
       all: async () => {
         if (sql.includes('FROM assemblies')) return { results: store.assemblies };
+        if (sql === 'SELECT * FROM users') return { results: users };
+        if (sql.includes('FROM projects')) return { results: projects };
+        if (sql.includes('FROM invoices')) {
+          const status = sql.includes("status = 'open'") ? 'open' : null;
+          return { results: inYear(invoices.filter((r) => !status || r.status === status), args) };
+        }
+        if (sql.includes('FROM memberships m JOIN users')) {
+          return { results: memberships.filter((m) => m.project_id === args[0]).map((m) => users.find((u) => u.id === m.user_id)) };
+        }
+        if (sql.includes('FROM assembly_attendance')) {
+          const aid = args[0];
+          return { results: store.attendance.filter((r) => aid === undefined || r.assembly_id === aid) };
+        }
         return { results: [] };
       },
       run: async () => {
@@ -52,6 +91,9 @@ function fakeDb({ session = ADMIN, assemblies = [A1, A2], assemblyRow = A1, minu
         if (sql.startsWith('DELETE FROM assembly_attendance')) {
           store.attendance = store.attendance.filter((r) => r.assembly_id !== args[0]);
         }
+        if (sql.startsWith('INSERT INTO assembly_attendance')) {
+          store.attendance.push({ assembly_id: args[0], user_id: args[1], present: 1 });
+        }
         if (sql.startsWith('UPDATE assemblies SET minutes_id = NULL')) {
           for (const r of store.assemblies) if (r.minutes_id === args[0]) r.minutes_id = null;
         }
@@ -60,6 +102,8 @@ function fakeDb({ session = ADMIN, assemblies = [A1, A2], assemblyRow = A1, minu
     }),
     all: async () => {
       if (sql.includes('FROM assemblies')) return { results: store.assemblies };
+      if (sql === 'SELECT * FROM users') return { results: users };
+      if (sql.includes('FROM assembly_attendance')) return { results: store.attendance };
       return { results: [] };
     },
   });
@@ -138,8 +182,7 @@ describe('assemblies', () => {
     expect(denied.status).toBe(403);
   });
 
-  it('deleting a linked minute clears the assembly link', async () => {
-    const { store } = fakeDb();
+  it('deleting a linked minute clears the assembly link', async () => {    const { store } = fakeDb();
     const res = await app.request('/api/minutes/m-1', { method: 'DELETE', headers: adm }, {
       DB: {
         prepare: (sql) => ({
@@ -163,5 +206,50 @@ describe('assemblies', () => {
     });
     expect(res.status).toBe(200);
     expect(store.assemblies.find((r) => r.id === 'a-1').minutes_id).toBeNull();
+  });
+
+  it('pack loads by assembly with its year numbers and scoped attendance', async () => {
+    const { db } = fakeDb();
+    const res = await app.request('/api/assembly-pack?assembly=a-1', { headers: adm }, { DB: db });
+    expect(res.status).toBe(200);
+    const { assembly, pack } = (await res.json()).data;
+    expect(assembly.id).toBe('a-1');
+    expect(assembly.minutes_id).toBe('m-1');
+    expect(pack.year).toBe(2026);
+    expect(pack.member_count).toBe(2);
+    expect(pack.new_members.map((m) => m.name)).toEqual(['Ben']);
+    expect(pack.projects).toHaveLength(1);
+    expect(pack.projects[0].member_count).toBe(2);
+    expect(pack.finance.paid_cents).toBe(1200);
+    expect(pack.open_invoices).toHaveLength(1);
+    expect(pack.attendance).toEqual([{ user_id: 'u-1', present: 1 }]);
+    const other = await app.request('/api/assembly-pack?assembly=a-2', { headers: adm }, { DB: db });
+    expect((await other.json()).data.pack.attendance).toEqual([]);
+  });
+
+  it('unknown assembly gives 404 on pack and attendance PATCH', async () => {
+    const { db } = fakeDb();
+    const pack = await app.request('/api/assembly-pack?assembly=nope', { headers: adm }, { DB: db });
+    expect(pack.status).toBe(404);
+    const missing = await app.request('/api/assembly-pack?assembly=nope', { headers: adm }, { DB: db });
+    expect(missing.status).toBe(404);
+    const patch = await app.request('/api/assembly-pack/attendance', {
+      method: 'PATCH', headers: { ...adm, ...json }, body: JSON.stringify({ assembly: 'nope', present: ['u-1'] }),
+    }, { DB: db });
+    expect(patch.status).toBe(404);
+  });
+
+  it('attendance PATCH replaces per assembly idempotently with dedupe', async () => {
+    const { store, db } = fakeDb({ attendance: [] });
+    const json = { 'Content-Type': 'application/json' };
+    const first = await app.request('/api/assembly-pack/attendance', {
+      method: 'PATCH', headers: { ...adm, ...json }, body: JSON.stringify({ assembly: 'a-2', present: ['u-1', 'u-1', 'u-2'] }),
+    }, { DB: db });
+    expect(first.status).toBe(200);
+    expect((await first.json()).data.saved).toBe(2);
+    expect(store.attendance).toEqual([
+      { assembly_id: 'a-2', user_id: 'u-1', present: 1 },
+      { assembly_id: 'a-2', user_id: 'u-2', present: 1 },
+    ]);
   });
 });

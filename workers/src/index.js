@@ -397,20 +397,21 @@ app.delete('/api/assemblies/:id', requireAdmin, async (c) => {
   return ok(c, {});
 });
 
-// --- Generalversammlung pack (admin aggregates + attendance) ---
+// --- Generalversammlung pack (admin aggregates + per-assembly attendance) ---
 app.get('/api/assembly-pack', requireAdmin, async (c) => {
-  const rawYear = c.req.query('year');
-  const year = rawYear == null || rawYear === '' ? new Date().getFullYear() : Number(rawYear);
-  if (!Number.isInteger(year) || year < 2000 || year > 2100) return fail(c, 'Invalid year.', 400);
+  const assembly = await c.env.DB.prepare('SELECT * FROM assemblies WHERE id = ?').bind(c.req.query('assembly')).first();
+  if (!assembly) return fail(c, 'Not found.', 404);
+  const year = Number(String(assembly.held_on).slice(0, 4));
   const { results: users } = await c.env.DB.prepare('SELECT * FROM users').all();
   const { results: projects } = await c.env.DB.prepare('SELECT * FROM projects WHERE start_at >= ? AND start_at < ?')
     .bind(`${year}-01-01`, `${year + 1}-01-01`).all();
   const withCounts = await withMemberCounts(c.env.DB, projects ?? []);
   const { results: openInvoices } = await c.env.DB.prepare("SELECT i.*, u.name AS user_name FROM invoices i LEFT JOIN users u ON u.id = i.user_id WHERE i.status = 'open' AND i.year = ? ORDER BY i.created_at")
     .bind(year).all();
-  const { results: attendance } = await c.env.DB.prepare('SELECT user_id, present FROM assembly_attendance WHERE year = ?')
-    .bind(year).all();
+  const { results: attendance } = await c.env.DB.prepare('SELECT user_id, present FROM assembly_attendance WHERE assembly_id = ?')
+    .bind(assembly.id).all();
   return ok(c, {
+    assembly: { id: assembly.id, title: assembly.title, held_on: assembly.held_on, minutes_id: assembly.minutes_id ?? null },
     pack: {
       year,
       member_count: (users ?? []).length,
@@ -424,13 +425,14 @@ app.get('/api/assembly-pack', requireAdmin, async (c) => {
 });
 
 app.patch('/api/assembly-pack/attendance', requireAdmin, async (c) => {
-  const { year, present } = await c.req.json();
-  if (!Number.isInteger(year) || year < 2000 || year > 2100) return fail(c, 'Invalid year.', 400);
+  const { assembly, present } = await c.req.json();
+  const row = await c.env.DB.prepare('SELECT id FROM assemblies WHERE id = ?').bind(assembly).first();
+  if (!row) return fail(c, 'Not found.', 404);
   if (!Array.isArray(present)) return fail(c, 'Present must be a list.', 400);
   const unique = [...new Set(present)];
-  await c.env.DB.prepare('DELETE FROM assembly_attendance WHERE year = ?').bind(year).run();
+  await c.env.DB.prepare('DELETE FROM assembly_attendance WHERE assembly_id = ?').bind(assembly).run();
   for (const user_id of unique) {
-    await c.env.DB.prepare('INSERT INTO assembly_attendance (year, user_id, present) VALUES (?, ?, ?)').bind(year, user_id, 1).run();
+    await c.env.DB.prepare('INSERT INTO assembly_attendance (assembly_id, user_id, present) VALUES (?, ?, ?)').bind(assembly, user_id, 1).run();
   }
   return ok(c, { saved: unique.length });
 });
