@@ -743,6 +743,42 @@ app.get('/api/minutes/:id/file', requireUser, async (c) => {
   return new Response(obj.body, { headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'private, max-age=3600' } });
 });
 
+// --- Board decisions (members read, admins write) ---
+function validDecisionDate(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s ?? '')) return false;
+  const [y, m, d] = s.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
+app.get('/api/decisions', requireUser, async (c) => {
+  const { results } = await c.env.DB.prepare('SELECT * FROM decisions ORDER BY decided_at DESC').all();
+  return ok(c, { decisions: results ?? [] });
+});
+
+app.post('/api/decisions', requireAdmin, async (c) => {
+  const session = c.get('session');
+  const body = await c.req.json();
+  const title = String(body.title ?? '').trim();
+  const detail = String(body.detail ?? '').trim();
+  const decided_at = String(body.decided_at ?? '').trim() || nowISO().slice(0, 10);
+  if (!title || title.length > 150) return fail(c, 'Title is required.', 400);
+  if (detail.length > 2000) return fail(c, 'Detail is too long.', 400);
+  if (!validDecisionDate(decided_at)) return fail(c, 'Invalid date.', 400);
+  const id = uid('dec');
+  await c.env.DB.prepare('INSERT INTO decisions (id, title, detail, decided_at, recorded_by, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(id, title, detail, decided_at, session.user_id, nowISO()).run();
+  const decision = await c.env.DB.prepare('SELECT * FROM decisions WHERE id = ?').bind(id).first();
+  return ok(c, { decision }, 201);
+});
+
+app.delete('/api/decisions/:id', requireAdmin, async (c) => {
+  const existing = await c.env.DB.prepare('SELECT * FROM decisions WHERE id = ?').bind(c.req.param('id')).first();
+  if (!existing) return fail(c, 'Not found.', 404);
+  await c.env.DB.prepare('DELETE FROM decisions WHERE id = ?').bind(existing.id).run();
+  return ok(c, {});
+});
+
 app.get('/avatars/:key', async (c) => {
   const obj = await c.env.AVATARS.get(`avatars/${c.req.param('key')}`);
   if (!obj) return fail(c, 'Not found.', 404);

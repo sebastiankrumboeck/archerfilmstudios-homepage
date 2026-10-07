@@ -85,6 +85,14 @@ CREATE TABLE assembly_attendance (
   present INTEGER DEFAULT 1,
   PRIMARY KEY(year, user_id)
 );
+CREATE TABLE decisions (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  detail TEXT DEFAULT '',
+  decided_at TEXT NOT NULL,
+  recorded_by TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE minutes (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
