@@ -1,6 +1,7 @@
 import { mountLayout } from '../layout.js';
 import { api } from '../api/client.js';
 import { renderVorstand } from '../views/vorstand.js';
+import { renderStats } from '../views/stats.js';
 
 await mountLayout('board');
 const view = document.querySelector('#app-view');
@@ -69,6 +70,20 @@ async function load() {
       await load();
     },
   });
+  if (me?.is_admin) {
+    const statsBox = document.createElement('div');
+    statsBox.className = 'mt-12';
+    view.append(statsBox);
+    try {
+      const { stats } = await api('/api/stats');
+      renderStats(statsBox, stats);
+    } catch (err) {
+      const p = document.createElement('p');
+      p.className = 'text-sm text-red-400';
+      p.textContent = err.message;
+      statsBox.append(p);
+    }
+  }
 }
 
 try {

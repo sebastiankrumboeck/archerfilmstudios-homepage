@@ -934,6 +934,58 @@ app.post('/api/contact', async (c) => {
   }
 });
 
+// --- Member statistics (admin aggregates, read-only) ---
+app.get('/api/stats', requireAdmin, async (c) => {
+  const now = Date.now();
+  const year = new Date(now).getUTCFullYear();
+  const windowStartDay = new Date(now - 365 * 86400000).toISOString().slice(0, 10);
+  const { results: users } = await c.env.DB.prepare('SELECT id, name, created_at FROM users').all();
+  const { results: projects } = await c.env.DB.prepare('SELECT id, start_at FROM projects').all();
+  const { results: memberships } = await c.env.DB.prepare('SELECT user_id, project_id FROM memberships').all();
+  const startByProject = new Map((projects ?? []).map((p) => [p.id, p.start_at]));
+  const yearCounts = new Map();
+  for (const u of users ?? []) {
+    const y = Number(String(u.created_at ?? '').slice(0, 4));
+    if (Number.isInteger(y)) yearCounts.set(y, (yearCounts.get(y) ?? 0) + 1);
+  }
+  const joins_by_year = [...yearCounts.entries()].sort((a, b) => a[0] - b[0]).map(([y, count]) => ({ year: y, count }));
+  const thisYearProjects = new Set((projects ?? []).filter((p) => String(p.start_at ?? '').startsWith(String(year))).map((p) => p.id));
+  let participations_this_year = 0;
+  const lastActive = new Map();
+  for (const m of memberships ?? []) {
+    if (thisYearProjects.has(m.project_id)) participations_this_year += 1;
+    const start = startByProject.get(m.project_id);
+    if (start && String(start).slice(0, 10) >= windowStartDay) {
+      const prev = lastActive.get(m.user_id);
+      if (!prev || start > prev) lastActive.set(m.user_id, start);
+    }
+  }
+  const datedById = new Map();
+  for (const u of users ?? []) {
+    if (lastActive.has(u.id)) continue;
+    const starts = (memberships ?? []).filter((m) => m.user_id === u.id).map((m) => startByProject.get(m.project_id)).filter(Boolean).sort();
+    if (starts.length) datedById.set(u.id, starts[starts.length - 1].slice(0, 10));
+  }
+  const inactive = (users ?? [])
+    .filter((u) => !lastActive.has(u.id))
+    .map((u) => ({ id: u.id, name: u.name, last_active: datedById.get(u.id) ?? 'nie' }));
+  inactive.sort((a, b) => {
+    if (a.last_active === 'nie' && b.last_active !== 'nie') return -1;
+    if (b.last_active === 'nie' && a.last_active !== 'nie') return 1;
+    return a.last_active < b.last_active ? -1 : a.last_active > b.last_active ? 1 : 0;
+  });
+  return ok(c, {
+    stats: {
+      total_members: (users ?? []).length,
+      new_this_year: (users ?? []).filter((u) => String(u.created_at ?? '').startsWith(String(year))).length,
+      projects_this_year: thisYearProjects.size,
+      participations_this_year,
+      joins_by_year,
+      inactive,
+    },
+  });
+});
+
 app.get('/api/calendar', requireUser, async (c) => {
   const month = c.req.query('month');
   if (!/^\d{4}-\d{2}$/.test(month ?? '')) return fail(c, 'month as YYYY-MM is required.', 400);
