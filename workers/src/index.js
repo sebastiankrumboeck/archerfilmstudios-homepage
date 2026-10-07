@@ -399,7 +399,9 @@ app.delete('/api/assemblies/:id', requireAdmin, async (c) => {
 
 // --- Generalversammlung pack (admin aggregates + per-assembly attendance) ---
 app.get('/api/assembly-pack', requireAdmin, async (c) => {
-  const assembly = await c.env.DB.prepare('SELECT * FROM assemblies WHERE id = ?').bind(c.req.query('assembly')).first();
+  const aid = c.req.query('assembly');
+  if (typeof aid !== 'string' || !aid) return fail(c, 'Not found.', 404);
+  const assembly = await c.env.DB.prepare('SELECT * FROM assemblies WHERE id = ?').bind(aid).first();
   if (!assembly) return fail(c, 'Not found.', 404);
   const year = Number(String(assembly.held_on).slice(0, 4));
   const { results: users } = await c.env.DB.prepare('SELECT * FROM users').all();
@@ -426,6 +428,7 @@ app.get('/api/assembly-pack', requireAdmin, async (c) => {
 
 app.patch('/api/assembly-pack/attendance', requireAdmin, async (c) => {
   const { assembly, present } = await c.req.json();
+  if (typeof assembly !== 'string' || !assembly) return fail(c, 'Not found.', 404);
   const row = await c.env.DB.prepare('SELECT id FROM assemblies WHERE id = ?').bind(assembly).first();
   if (!row) return fail(c, 'Not found.', 404);
   if (!Array.isArray(present)) return fail(c, 'Present must be a list.', 400);

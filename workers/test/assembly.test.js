@@ -32,7 +32,9 @@ function fakeDb({ session = ADMIN, assemblies = [A1, A2], assemblyRow = A1, minu
     transfer: rows.filter((r) => r.paid_method === 'transfer').reduce((n, r) => n + r.amount_cents, 0),
   });
   const handler = (sql) => ({
-    bind: (...args) => ({
+    bind: (...args) => {
+      if (args.some((a) => a === undefined)) throw new Error('D1_TYPE_ERROR: values must not be undefined');
+      return {
       first: async () => {
         if (sql.includes('FROM sessions')) return session;
         if (sql.includes('FROM assemblies') && sql.includes('id = ?')) {
@@ -99,7 +101,8 @@ function fakeDb({ session = ADMIN, assemblies = [A1, A2], assemblyRow = A1, minu
         }
         return {};
       },
-    }),
+      };
+    },
     all: async () => {
       if (sql.includes('FROM assemblies')) return { results: store.assemblies };
       if (sql === 'SELECT * FROM users') return { results: users };
@@ -231,12 +234,35 @@ describe('assemblies', () => {
     const { db } = fakeDb();
     const pack = await app.request('/api/assembly-pack?assembly=nope', { headers: adm }, { DB: db });
     expect(pack.status).toBe(404);
+    expect((await pack.json()).data).toBeUndefined();
     const missing = await app.request('/api/assembly-pack?assembly=nope', { headers: adm }, { DB: db });
     expect(missing.status).toBe(404);
     const patch = await app.request('/api/assembly-pack/attendance', {
       method: 'PATCH', headers: { ...adm, ...json }, body: JSON.stringify({ assembly: 'nope', present: ['u-1'] }),
     }, { DB: db });
     expect(patch.status).toBe(404);
+  });
+
+  it('missing assembly param gives 404, not 500', async () => {
+    const { db } = fakeDb();
+    const pack = await app.request('/api/assembly-pack', { headers: adm }, { DB: db });
+    expect(pack.status).toBe(404);
+    const patch = await app.request('/api/assembly-pack/attendance', {
+      method: 'PATCH', headers: { ...adm, ...json }, body: JSON.stringify({ present: ['u-1'] }),
+    }, { DB: db });
+    expect(patch.status).toBe(404);
+  });
+
+  it('non-admin gets 403 on every assembly route', async () => {
+    const db = () => fakeDb({ session: MEMBER_SESSION }).db;
+    expect((await app.request('/api/assemblies', { headers: mem }, { DB: db() })).status).toBe(403);
+    expect((await app.request('/api/assemblies/a-1', {
+      method: 'PATCH', headers: { ...mem, ...json }, body: JSON.stringify({ title: 'X' }),
+    }, { DB: db() })).status).toBe(403);
+    expect((await app.request('/api/assembly-pack?assembly=a-1', { headers: mem }, { DB: db() })).status).toBe(403);
+    expect((await app.request('/api/assembly-pack/attendance', {
+      method: 'PATCH', headers: { ...mem, ...json }, body: JSON.stringify({ assembly: 'a-1', present: [] }),
+    }, { DB: db() })).status).toBe(403);
   });
 
   it('attendance PATCH replaces per assembly idempotently with dedupe', async () => {
