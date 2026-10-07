@@ -348,6 +348,55 @@ app.get('/api/invoices/summary', requireKassier, async (c) => {
   return ok(c, { summary: await invoiceSummary(c.env.DB, year) });
 });
 
+// --- Assemblies (multiple per year, each with date, attendance, minutes link) ---
+app.get('/api/assemblies', requireAdmin, async (c) => {
+  const { results } = await c.env.DB.prepare('SELECT * FROM assemblies ORDER BY held_on DESC').all();
+  return ok(c, { assemblies: results ?? [] });
+});
+
+app.post('/api/assemblies', requireAdmin, async (c) => {
+  const body = await c.req.json();
+  const title = String(body.title ?? '').trim();
+  const held_on = String(body.held_on ?? '').trim();
+  if (!title || title.length > 150) return fail(c, 'Title is required.', 400);
+  if (!validDecisionDate(held_on)) return fail(c, 'Invalid date.', 400);
+  const id = uid('asm');
+  await c.env.DB.prepare('INSERT INTO assemblies (id, title, held_on, minutes_id, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(id, title, held_on, null, nowISO()).run();
+  const assembly = await c.env.DB.prepare('SELECT * FROM assemblies WHERE id = ?').bind(id).first();
+  return ok(c, { assembly }, 201);
+});
+
+app.patch('/api/assemblies/:id', requireAdmin, async (c) => {
+  const existing = await c.env.DB.prepare('SELECT * FROM assemblies WHERE id = ?').bind(c.req.param('id')).first();
+  if (!existing) return fail(c, 'Not found.', 404);
+  const body = await c.req.json();
+  const title = body.title !== undefined ? String(body.title ?? '').trim() : existing.title;
+  const held_on = body.held_on !== undefined ? String(body.held_on ?? '').trim() : existing.held_on;
+  let minutes_id = existing.minutes_id ?? null;
+  if (body.minutes_id !== undefined) {
+    minutes_id = body.minutes_id;
+    if (minutes_id !== null) {
+      const minute = await c.env.DB.prepare('SELECT id FROM minutes WHERE id = ?').bind(minutes_id).first();
+      if (!minute) return fail(c, 'Unknown minutes.', 400);
+    }
+  }
+  if (!title || title.length > 150) return fail(c, 'Title is required.', 400);
+  if (!validDecisionDate(held_on)) return fail(c, 'Invalid date.', 400);
+  await c.env.DB.prepare('UPDATE assemblies SET title = ?, held_on = ?, minutes_id = ? WHERE id = ?')
+    .bind(title, held_on, minutes_id, existing.id).run();
+  const assembly = await c.env.DB.prepare('SELECT * FROM assemblies WHERE id = ?').bind(existing.id).first();
+  return ok(c, { assembly });
+});
+
+app.delete('/api/assemblies/:id', requireAdmin, async (c) => {
+  const existing = await c.env.DB.prepare('SELECT * FROM assemblies WHERE id = ?').bind(c.req.param('id')).first();
+  if (!existing) return fail(c, 'Not found.', 404);
+  await c.env.DB.prepare('DELETE FROM assembly_attendance WHERE assembly_id = ?').bind(existing.id).run();
+  await c.env.DB.prepare('DELETE FROM assemblies WHERE id = ?').bind(existing.id).run();
+  return ok(c, {});
+});
+
 // --- Generalversammlung pack (admin aggregates + attendance) ---
 app.get('/api/assembly-pack', requireAdmin, async (c) => {
   const rawYear = c.req.query('year');
@@ -733,6 +782,7 @@ app.delete('/api/minutes/:id', requireUser, async (c) => {
   if (doc.uploaded_by !== session.user_id && !session.is_admin) return fail(c, 'Not yours.', 403);
   await c.env.AVATARS.delete(doc.r2_key);
   await c.env.DB.prepare('DELETE FROM minutes WHERE id = ?').bind(doc.id).run();
+  await c.env.DB.prepare('UPDATE assemblies SET minutes_id = NULL WHERE minutes_id = ?').bind(doc.id).run();
   return ok(c, {});
 });
 
