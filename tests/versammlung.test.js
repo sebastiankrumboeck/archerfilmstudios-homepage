@@ -63,6 +63,47 @@ describe('versammlung pack', () => {
     }
   });
 
+  it('assembly list selects and create form submits with defaults', async () => {
+    const { renderAssemblies } = await import('../src/views/versammlung.js');
+    const el = document.createElement('div');
+    const onSelect = vi.fn();
+    const onCreate = vi.fn();
+    const assemblies = [
+      { id: 'a-1', title: 'GV Frühjahr', held_on: '2026-03-15', minutes_id: null },
+      { id: 'a-2', title: 'GV Herbst', held_on: '2026-10-15', minutes_id: null },
+    ];
+    renderAssemblies(el, assemblies, { selectedId: 'a-2', onSelect, onCreate });
+    expect(el.textContent).toContain('GV Frühjahr');
+    el.querySelector('[data-select="a-1"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onSelect).toHaveBeenCalledWith('a-1');
+    const form = el.querySelector('[data-assembly-form]');
+    expect(form.querySelector('[name="title"]').value).toBe('Generalversammlung');
+    expect(form.querySelector('[name="held_on"]').value).toBe(new Date().toISOString().slice(0, 10));
+    form.querySelector('[name="held_on"]').value = '2026-12-10';
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(onCreate).toHaveBeenCalledWith({ title: 'Generalversammlung', held_on: '2026-12-10' }));
+  });
+
+  it('minutes block links the file or attaches a chosen minute', async () => {
+    const { renderAssemblies } = await import('../src/views/versammlung.js');
+    const linked = document.createElement('div');
+    renderAssemblies(linked, [], {
+      selectedId: null, onSelect: vi.fn(), onCreate: vi.fn(),
+      minutes: [{ id: 'm-1', title: 'Protokoll' }], linkedMinutesId: 'm-1', onLinkMinutes: vi.fn(),
+    });
+    expect(linked.querySelector('a[href="/api/minutes/m-1/file"]')).toBeTruthy();
+    const plain = document.createElement('div');
+    const onLinkMinutes = vi.fn();
+    renderAssemblies(plain, [], {
+      selectedId: null, onSelect: vi.fn(), onCreate: vi.fn(),
+      minutes: [{ id: 'm-1', title: 'Protokoll' }], linkedMinutesId: null, onLinkMinutes,
+    });
+    expect(plain.querySelector('a[href="/api/minutes/m-1/file"]')).toBeNull();
+    plain.querySelector('[data-minutes]').value = 'm-1';
+    plain.querySelector('[data-link-minutes]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await vi.waitFor(() => expect(onLinkMinutes).toHaveBeenCalledWith('m-1'));
+  });
+
   it('admin nav link shows only for admins', async () => {
     const meWith = (admin) => vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, data: { user: { is_admin: admin } } }) });
     document.body.innerHTML = '<a href="/versammlung/" data-private-link data-admin-link>Versammlung</a>';

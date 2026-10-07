@@ -1,6 +1,65 @@
 import { esc } from './projects.js';
 import { formatEuro } from './finanzen.js';
 
+export function renderAssemblies(el, assemblies = [], { selectedId = null, onSelect = null, onCreate = null, minutes = [], linkedMinutesId = null, onLinkMinutes = null } = {}) {
+  el.innerHTML = '';
+  const heading = document.createElement('h2');
+  heading.className = 'font-display text-2xl uppercase';
+  heading.textContent = 'Versammlungen';
+  el.append(heading);
+  const list = document.createElement('div');
+  list.className = 'mt-2 grid gap-2';
+  for (const a of assemblies) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.setAttribute('data-select', a.id);
+    btn.className = `border p-3 text-left text-sm transition-colors hover:border-amber${a.id === selectedId ? ' border-amber' : ' border-paper/15'}`;
+    if (a.id === selectedId) btn.setAttribute('aria-current', 'true');
+    btn.textContent = `${a.title} — ${String(a.held_on).slice(0, 10)}`;
+    btn.addEventListener('click', () => onSelect?.(a.id));
+    list.append(btn);
+  }
+  el.append(list);
+  const form = document.createElement('form');
+  form.setAttribute('data-assembly-form', '');
+  form.className = 'mt-4 grid max-w-xl gap-3 border border-paper/15 p-6';
+  form.innerHTML = `
+    <h3 class="font-display text-xl uppercase">Neue Versammlung</h3>
+    <label class="text-xs uppercase text-paper/60">Titel
+      <input name="title" required maxlength="150" value="Generalversammlung" class="mt-1 w-full border border-paper/20 bg-transparent p-3 normal-case" />
+    </label>
+    <label class="text-xs uppercase text-paper/60">Datum
+      <input name="held_on" type="date" required value="${new Date().toISOString().slice(0, 10)}" class="mt-1 w-full border border-paper/20 bg-transparent p-3" />
+    </label>
+    <p data-error class="text-sm text-red-400"></p>
+    <button class="w-fit border border-amber px-5 py-3 text-xs uppercase tracking-widest">Erstellen</button>`;
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    onCreate?.({ title: String(fd.get('title') ?? '').trim(), held_on: String(fd.get('held_on') ?? '').trim() });
+  });
+  el.append(form);
+  const minutesBox = document.createElement('div');
+  minutesBox.className = 'mt-6';
+  if (linkedMinutesId) {
+    minutesBox.innerHTML = `<a class="border border-amber px-4 py-2 text-xs uppercase" href="/api/minutes/${encodeURIComponent(linkedMinutesId)}/file" target="_blank" rel="noreferrer">Mitschrift ansehen</a>`;
+  } else if (minutes.length) {
+    minutesBox.innerHTML = `
+      <label class="text-xs uppercase text-paper/60">Mitschrift
+        <select data-minutes class="ml-2 border border-paper/20 bg-transparent p-2 text-sm">
+          ${minutes.map((m) => `<option value="${esc(m.id)}">${esc(m.title)}</option>`).join('')}
+        </select>
+      </label>
+      <button type="button" data-link-minutes class="ml-2 border border-paper/20 px-4 py-2 text-xs uppercase">Verknüpfen</button>`;
+    minutesBox.querySelector('[data-link-minutes]').addEventListener('click', () => {
+      onLinkMinutes?.(minutesBox.querySelector('[data-minutes]').value);
+    });
+  } else {
+    minutesBox.innerHTML = '<p class="text-sm text-paper/60">Noch keine Mitschrift verknüpft.</p>';
+  }
+  el.append(minutesBox);
+}
+
 export function renderPack(el, pack, { members = [], onToggleAttendance = null } = {}) {
   el.innerHTML = '';
   const present = new Set((pack.attendance ?? []).filter((r) => r.present).map((r) => r.user_id));
