@@ -378,11 +378,12 @@ app.patch('/api/assembly-pack/attendance', requireAdmin, async (c) => {
   const { year, present } = await c.req.json();
   if (!Number.isInteger(year) || year < 2000 || year > 2100) return fail(c, 'Invalid year.', 400);
   if (!Array.isArray(present)) return fail(c, 'Present must be a list.', 400);
+  const unique = [...new Set(present)];
   await c.env.DB.prepare('DELETE FROM assembly_attendance WHERE year = ?').bind(year).run();
-  for (const user_id of present) {
+  for (const user_id of unique) {
     await c.env.DB.prepare('INSERT INTO assembly_attendance (year, user_id, present) VALUES (?, ?, ?)').bind(year, user_id, 1).run();
   }
-  return ok(c, { saved: present.length });
+  return ok(c, { saved: unique.length });
 });
 
 app.post('/api/invoices', requireKassier, async (c) => {
@@ -946,7 +947,7 @@ app.get('/api/stats', requireAdmin, async (c) => {
   const yearCounts = new Map();
   for (const u of users ?? []) {
     const y = Number(String(u.created_at ?? '').slice(0, 4));
-    if (Number.isInteger(y)) yearCounts.set(y, (yearCounts.get(y) ?? 0) + 1);
+    if (Number.isInteger(y) && y >= 1000) yearCounts.set(y, (yearCounts.get(y) ?? 0) + 1);
   }
   const joins_by_year = [...yearCounts.entries()].sort((a, b) => a[0] - b[0]).map(([y, count]) => ({ year: y, count }));
   const thisYearProjects = new Set((projects ?? []).filter((p) => String(p.start_at ?? '').startsWith(String(year))).map((p) => p.id));

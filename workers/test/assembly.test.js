@@ -131,4 +131,15 @@ describe('assembly pack', () => {
     }, { DB: fakeDb({ session: MEMBER_SESSION }).db });
     expect(denied.status).toBe(403);
   });
+
+  it('duplicate ids in present are stored once', async () => {
+    const { store, db } = fakeDb({ attendance: [] });
+    const json = { 'Content-Type': 'application/json' };
+    const res = await app.request('/api/assembly-pack/attendance', {
+      method: 'PATCH', headers: { ...adm, ...json }, body: JSON.stringify({ year: 2026, present: ['u-1', 'u-1'] }),
+    }, { DB: db });
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.saved).toBe(1);
+    expect(store.attendance).toEqual([{ year: 2026, user_id: 'u-1', present: 1 }]);
+  });
 });

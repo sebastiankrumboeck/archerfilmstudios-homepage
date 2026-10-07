@@ -98,4 +98,11 @@ describe('member stats', () => {
     const res = await app.request('/api/stats', { headers: mem }, { DB: fakeDb({ session: MEMBER_SESSION }) });
     expect(res.status).toBe(403);
   });
+
+  it('users without usable created_at create no year bucket', async () => {
+    const users = [{ id: 'u-9', name: 'Legacy', created_at: '' }];
+    const res = await app.request('/api/stats', { headers: adm }, { DB: fakeDb({ users, projects: [], memberships: [] }) });
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.stats.joins_by_year).toEqual([]);
+  });
 });

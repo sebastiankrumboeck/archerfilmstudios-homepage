@@ -26,12 +26,27 @@ describe('versammlung pack', () => {
     expect(boxes.find((b) => b.dataset.user === 'u-2').checked).toBe(false);
   });
 
-  it('toggle fires onToggleAttendance with flipped presence', () => {
+  it('toggle fires onToggleAttendance with the live checkbox state', () => {
     const el = document.createElement('div');
     const onToggleAttendance = vi.fn();
     renderPack(el, PACK, { members: [{ id: 'u-1', name: 'Anna' }], onToggleAttendance });
-    el.querySelector('[data-attendance]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const box = el.querySelector('[data-attendance]');
+    box.checked = false;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
     expect(onToggleAttendance).toHaveBeenCalledWith('u-1', false);
+  });
+
+  it('re-toggling the same checkbox sends the live state', () => {
+    const el = document.createElement('div');
+    const onToggleAttendance = vi.fn();
+    renderPack(el, PACK, { members: [{ id: 'u-1', name: 'Anna' }], onToggleAttendance });
+    const box = el.querySelector('[data-attendance]');
+    box.checked = false;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(onToggleAttendance).toHaveBeenLastCalledWith('u-1', false);
+    box.checked = true;
+    box.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(onToggleAttendance).toHaveBeenLastCalledWith('u-1', true);
   });
 
   it('print button calls window.print', () => {

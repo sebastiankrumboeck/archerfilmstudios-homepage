@@ -45,6 +45,6 @@ export function renderPack(el, pack, { members = [], onToggleAttendance = null }
     </section>`;
   el.querySelector('[data-print]').addEventListener('click', () => window.print());
   for (const box of el.querySelectorAll('[data-attendance]')) {
-    box.addEventListener('click', () => onToggleAttendance?.(box.dataset.user, !present.has(box.dataset.user)));
+    box.addEventListener('change', () => onToggleAttendance?.(box.dataset.user, box.checked));
   }
 }
