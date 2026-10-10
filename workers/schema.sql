@@ -49,6 +49,7 @@ CREATE TABLE films (
   created_at TEXT NOT NULL
 );
 ALTER TABLE users ADD COLUMN is_kassier INTEGER DEFAULT 0;
+ALTER TABLE users ADD COLUMN banned_until TEXT;
 CREATE TABLE invoices (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -115,3 +116,16 @@ CREATE TABLE minutes (
   uploaded_by TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE TABLE absence_requests (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  decision_note TEXT DEFAULT '',
+  decided_by TEXT,
+  created_at TEXT NOT NULL,
+  decided_at TEXT
+);
+CREATE INDEX idx_absence_project ON absence_requests(project_id);
+CREATE INDEX idx_absence_user ON absence_requests(user_id);

@@ -1,5 +1,10 @@
 import { api } from '../api/client.js';
 
+export function safeNext(value) {
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return null;
+  return value;
+}
+
 export function renderAuth(el, mode, onDone) {
   const isRegister = mode === 'register';
   el.innerHTML = `

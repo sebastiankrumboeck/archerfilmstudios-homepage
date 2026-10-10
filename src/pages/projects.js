@@ -1,20 +1,55 @@
 import { mountLayout } from '../layout.js';
 import { api } from '../api/client.js';
-import { renderProjectDetail, renderProjectGallery, renderProjects, renderProjectForm, renderReminderToggle } from '../views/projects.js';
+import { renderAbsenceDecided, renderAbsenceDecision, renderProjectDetail, renderProjectGallery, renderProjects, renderProjectForm, renderReminderToggle } from '../views/projects.js';
 
 await mountLayout('projects');
 const view = document.querySelector('#app-view');
-const requestedId = new URLSearchParams(location.search).get('id');
+const params = new URLSearchParams(location.search);
+const requestedId = params.get('id');
+const absenceId = params.get('absence');
 
-async function joinLeave(project, join) {
+function loginHref() {
+  return `/login/?next=${encodeURIComponent(location.pathname + location.search)}`;
+}
+
+async function joinLeave(project, join, reason = '') {
   try {
     if (join) await api(`/api/projects/${project.id}/join`, { method: 'POST', body: '{}' });
-    else await api(`/api/projects/${project.id}/join`, { method: 'DELETE' });
+    else await api(`/api/projects/${project.id}/join`, { method: 'DELETE', body: JSON.stringify({ reason }) });
     await loadDetail(project.id);
   } catch (err) {
-    if (err.status === 401) location.href = '/login/';
+    if (err.status === 401) location.href = loginHref();
     else alert(err.message);
   }
+}
+
+async function loadAbsence(id) {
+  const { absences } = await api('/api/absences');
+  const found = (absences ?? []).find((a) => a.id === id);
+  if (!found) {
+    view.innerHTML = '<p class="text-red-400">Nicht gefunden.</p>';
+    return;
+  }
+  renderAbsenceDecision(view, found, {
+    onApprove: async () => {
+      try {
+        await api(`/api/absences/${encodeURIComponent(id)}/decision`, { method: 'POST', body: JSON.stringify({ approved: true }) });
+        renderAbsenceDecided(view, { approved: true });
+      } catch (err) {
+        if (err.status === 401) location.href = loginHref();
+        else alert(err.message);
+      }
+    },
+    onReject: async (absenceId, note) => {
+      try {
+        await api(`/api/absences/${encodeURIComponent(absenceId)}/decision`, { method: 'POST', body: JSON.stringify({ approved: false, note }) });
+        renderAbsenceDecided(view, { approved: false });
+      } catch (err) {
+        if (err.status === 401) location.href = loginHref();
+        else alert(err.message);
+      }
+    },
+  });
 }
 
 async function loadDetail(id) {
@@ -27,12 +62,19 @@ async function loadDetail(id) {
       users = [];
     }
   }
+  let me = null;
+  try {
+    ({ user: me } = await api('/api/me'));
+  } catch {
+    me = null;
+  }
   renderProjectDetail(view, data, {
     isAdmin: data.canEdit,
     isMember: data.isMember,
     users,
+    bannedUntil: me?.banned_until ?? null,
     onJoin: (project) => joinLeave(project, true),
-    onLeave: (project) => joinLeave(project, false),
+    onLeave: (project, { reason } = {}) => joinLeave(project, false, reason),
     onAssignHead: async (headId) => {
       try {
         await api(`/api/projects/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ head_user_id: headId }) });
@@ -52,12 +94,6 @@ async function loadDetail(id) {
       }
     },
   });
-  let me = null;
-  try {
-    ({ user: me } = await api('/api/me'));
-  } catch {
-    me = null;
-  }
   const reminderBox = document.createElement('div');
   view.append(reminderBox);
   renderReminderToggle(reminderBox, {
@@ -123,21 +159,22 @@ async function load() {
     myId: me?.id,
     isAdmin: !!me?.is_admin,
     users,
+    bannedUntil: me?.banned_until ?? null,
     onJoin: async (project) => {
       try {
         await api(`/api/projects/${project.id}/join`, { method: 'POST', body: '{}' });
         await load();
       } catch (err) {
-        if (err.status === 401) location.href = '/login/';
+        if (err.status === 401) location.href = loginHref();
         else alert(err.message);
       }
     },
-    onLeave: async (project) => {
+    onLeave: async (project, { reason } = {}) => {
       try {
-        await api(`/api/projects/${project.id}/join`, { method: 'DELETE' });
+        await api(`/api/projects/${project.id}/join`, { method: 'DELETE', body: JSON.stringify({ reason: reason ?? '' }) });
         await load();
       } catch (err) {
-        if (err.status === 401) location.href = '/login/';
+        if (err.status === 401) location.href = loginHref();
         else alert(err.message);
       }
     },
@@ -156,10 +193,12 @@ async function load() {
 }
 
 try {
-  if (requestedId) await loadDetail(requestedId);
+  if (absenceId) await loadAbsence(absenceId);
+  else if (requestedId) await loadDetail(requestedId);
   else await load();
 } catch (err) {
-  if (err.status === 401) location.href = '/login/';
+  if (err.status === 401) location.href = loginHref();
+  else if (err.status === 403) view.innerHTML = '<p class="text-red-400">Nur für Vorstandsmitglieder.</p>';
   else if (err.status === 404) {
     view.innerHTML = requestedId ? '<p class="text-red-400">Project not found.</p>' : `<p class="text-red-400">${err.message}</p>`;
   } else view.innerHTML = `<p class="text-red-400">${err.message}</p>`;

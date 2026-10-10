@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import { hashPassword, verifyPassword, uid, nowISO, getSessionUser, requireUser, requireAdmin, requireKassier } from './auth.js';
+import { hashPassword, verifyPassword, uid, nowISO, getSessionUser, requireUser, requireAdmin, requireKassier, requireVorstand } from './auth.js';
 
 const app = new Hono();
 
@@ -28,7 +28,7 @@ app.use(async (c, next) => {
 const ok = (c, data, status = 200) => c.json({ ok: true, data }, status);
 const fail = (c, error, status = 400) => c.json({ ok: false, error }, status);
 const isEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e ?? '');
-const publicUser = (u) => ({ id: u.id, name: u.name, function: u.function, avatar_r2_key: u.avatar_r2_key, is_admin: !!u.is_admin, is_vorstand: !!u.is_vorstand, vorstand_title: u.vorstand_title, is_kassier: !!u.is_kassier });
+const publicUser = (u) => ({ id: u.id, name: u.name, function: u.function, avatar_r2_key: u.avatar_r2_key, is_admin: !!u.is_admin, is_vorstand: !!u.is_vorstand, vorstand_title: u.vorstand_title, is_kassier: !!u.is_kassier, banned_until: u.banned_until ?? null });
 
 function sessionCookie(c, id) {
   const host = c.req.header('host') ?? '';
@@ -183,6 +183,30 @@ const CLUB_BILLING = { name: 'Archer FilmStudios', holder: 'Archer FilmStudios' 
 const INVOICE_SENDER = 'invoices@archerfilmstudios.com';
 const CONTACT_FROM = 'website@archerfilmstudios.com';
 const CONTACT_TO = 'archerfilmstudios@gmail.com';
+
+// Abmeldefrist: leaves are consequence-free until 3 days before the project starts.
+const ABMELDEFRIST_MS = 3 * 864e5;
+const ABSENCE_BAN_MS = 14 * 864e5;
+
+const deDate = (iso) => {
+  const d = String(iso ?? '');
+  return `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}`;
+};
+
+export async function sendMail(env, { to, subject, text }) {
+  if (!env.RESEND_API_KEY) return { ok: false, error: 'Email not configured.' };
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: CONTACT_FROM, to, subject, text }),
+    });
+    if (!res.ok) return { ok: false, error: `Email failed (${res.status}).` };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
 
 function euroText(cents) {
   return `${(cents / 100).toFixed(2).replace('.', ',')} €`;
@@ -669,6 +693,10 @@ app.delete('/api/projects/:id', requireAdmin, async (c) => {
 app.post('/api/projects/:id/join', requireUser, async (c) => {
   const session = c.get('session');
   const pid = c.req.param('id');
+  const me = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(session.user_id).first();
+  if (me?.banned_until && Date.parse(me.banned_until) > Date.now()) {
+    return fail(c, `Deine Teilnahme ist bis zum ${deDate(me.banned_until)} gesperrt.`, 403);
+  }
   const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(pid).first();
   if (!project) return fail(c, 'Not found.', 404);
   const existing = await c.env.DB.prepare('SELECT * FROM memberships WHERE project_id = ? AND user_id = ?').bind(pid, session.user_id).first();
@@ -688,9 +716,111 @@ app.post('/api/projects/:id/join', requireUser, async (c) => {
 app.delete('/api/projects/:id/join', requireUser, async (c) => {
   const session = c.get('session');
   const pid = c.req.param('id');
-  const r = await c.env.DB.prepare('DELETE FROM memberships WHERE project_id = ? AND user_id = ?').bind(pid, session.user_id).run();
-  if (!r.meta.changes) return fail(c, 'Not found.', 404);
-  return ok(c, {});
+  const body = await c.req.json().catch(() => ({}));
+  const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(pid).first();
+  if (!project) return fail(c, 'Not found.', 404);
+  const existing = await c.env.DB.prepare('SELECT * FROM memberships WHERE project_id = ? AND user_id = ?').bind(pid, session.user_id).first();
+  if (!existing) return fail(c, 'Not found.', 404);
+  const late = Date.parse(project.start_at) - ABMELDEFRIST_MS < Date.now();
+  if (!late) {
+    await c.env.DB.prepare('DELETE FROM memberships WHERE project_id = ? AND user_id = ?').bind(pid, session.user_id).run();
+    return ok(c, { late: false });
+  }
+  const reason = String(body.reason ?? '').trim();
+  if (!reason) return fail(c, 'Bitte gib einen Grund für deine späte Abmeldung an.', 400);
+  if (reason.length > 2000) return fail(c, 'Der Grund ist zu lang (max. 2000 Zeichen).', 400);
+  const me = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(session.user_id).first();
+  const id = uid('ab');
+  await c.env.DB.batch([
+    c.env.DB.prepare('DELETE FROM memberships WHERE project_id = ? AND user_id = ?').bind(pid, session.user_id),
+    c.env.DB.prepare('INSERT INTO absence_requests (id, project_id, user_id, reason, status, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(id, pid, session.user_id, reason, 'pending', nowISO()),
+  ]);
+  const { results: board } = await c.env.DB.prepare('SELECT email, name FROM users WHERE is_vorstand = 1').all();
+  const link = `https://archerfilmstudios.com/projects/?absence=${id}`;
+  const subject = `Späte Abmeldung: ${project.title} – Archer FilmStudios`;
+  const text = [
+    'Hallo Vorstand,',
+    '',
+    `${me?.name ?? 'Ein Mitglied'} hat sich nach der Abmeldefrist vom Projekt „${project.title}“ (${deDate(project.start_at)}) abgemeldet.`,
+    '',
+    `Grund: ${reason}`,
+    '',
+    `Bitte entscheide hier, ob der Grund gültig ist: ${link}`,
+    '',
+    'Archer FilmStudios',
+  ].join('\n');
+  let emailed = 0;
+  let failed = 0;
+  for (const v of board ?? []) {
+    const r = await sendMail(c.env, { to: v.email, subject, text });
+    if (r.ok) emailed += 1;
+    else failed += 1;
+  }
+  return ok(c, { late: true, absence_id: id, email: { sent: emailed, failed } });
+});
+
+// --- Absence decisions (Vorstand) ---
+app.get('/api/absences', requireVorstand, async (c) => {
+  const { results } = await c.env.DB.prepare('SELECT * FROM absence_requests ORDER BY created_at DESC').all();
+  const out = [];
+  for (const a of results ?? []) {
+    const p = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(a.project_id).first();
+    const u = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(a.user_id).first();
+    out.push({ ...a, project_title: p?.title ?? '', user_name: u?.name ?? '' });
+  }
+  return ok(c, { absences: out });
+});
+
+app.post('/api/absences/:id/decision', requireVorstand, async (c) => {
+  const session = c.get('session');
+  const req_row = await c.env.DB.prepare('SELECT * FROM absence_requests WHERE id = ?').bind(c.req.param('id')).first();
+  if (!req_row) return fail(c, 'Nicht gefunden.', 404);
+  if (req_row.status !== 'pending') return fail(c, 'Diese Anfrage wurde bereits entschieden.', 409);
+  if (req_row.user_id === session.user_id) return fail(c, 'Eigene Anfragen können nicht entschieden werden.', 403);
+  const body = await c.req.json().catch(() => ({}));
+  if (body.approved !== true && body.approved !== false) return fail(c, 'Ungültige Entscheidung.', 400);
+  const note = String(body.note ?? '').trim();
+  if (!body.approved && !note) return fail(c, 'Bitte begründe die Ablehnung.', 400);
+  if (note.length > 2000) return fail(c, 'Die Begründung ist zu lang (max. 2000 Zeichen).', 400);
+  // Atomic: only the first decision wins, even under simultaneous requests.
+  const upd = await c.env.DB.prepare(
+    `UPDATE absence_requests SET status = ?, decision_note = ?, decided_by = ?, decided_at = ? WHERE id = ? AND status = 'pending'`,
+  ).bind(body.approved ? 'approved' : 'rejected', body.approved ? '' : note, session.user_id, nowISO(), req_row.id).run();
+  if (!upd.meta.changes) return fail(c, 'Diese Anfrage wurde bereits entschieden.', 409);
+  const member = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(req_row.user_id).first();
+  const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(req_row.project_id).first();
+  const title = project?.title ?? '';
+  let bannedUntil = null;
+  if (!body.approved) {
+    // Rejection bans; approval never touches an existing ban from another case.
+    bannedUntil = new Date(Date.now() + ABSENCE_BAN_MS).toISOString();
+    await c.env.DB.prepare('UPDATE users SET banned_until = ? WHERE id = ?').bind(bannedUntil, req_row.user_id).run();
+  }
+  const subject = body.approved
+    ? `Abmeldung genehmigt: ${title} – Archer FilmStudios`
+    : `Abmeldung abgelehnt: ${title} – Archer FilmStudios`;
+  const text = body.approved
+    ? [
+      `Hallo ${member?.name ?? ''},`,
+      '',
+      `deine späte Abmeldung vom Projekt „${title}“ wurde vom Vorstand genehmigt. Es entstehen dir keine Nachteile.`,
+      '',
+      'Archer FilmStudios',
+    ].join('\n')
+    : [
+      `Hallo ${member?.name ?? ''},`,
+      '',
+      `deine späte Abmeldung vom Projekt „${title}“ wurde vom Vorstand nicht als begründet anerkannt.`,
+      '',
+      `Begründung: ${note}`,
+      '',
+      `Daher bist du bis zum ${deDate(bannedUntil)} für neue Projekte gesperrt. Bestehende Teilnahmen bleiben bestehen.`,
+      '',
+      'Archer FilmStudios',
+    ].join('\n');
+  const email = member?.email ? await sendMail(c.env, { to: member.email, subject, text }) : { ok: false, error: 'No recipient.' };
+  return ok(c, { absence_id: req_row.id, status: body.approved ? 'approved' : 'rejected', banned_until: bannedUntil, email: { sent: email.ok, ...(email.ok ? {} : { error: email.error }) } });
 });
 
 // --- Project photos (shared albums) ---

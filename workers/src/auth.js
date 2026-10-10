@@ -31,7 +31,7 @@ export async function getSessionUser(c) {
   const cookie = c.req.header('cookie') ?? '';
   const match = cookie.match(/(?:^|;\s*)(?:app-session|__Host-session)=([^;]+)/);
   if (!match) return null;
-  const row = await c.env.DB.prepare('SELECT s.*, u.is_admin, u.is_kassier FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ? AND s.expires_at > ?')
+  const row = await c.env.DB.prepare('SELECT s.*, u.is_admin, u.is_kassier, u.is_vorstand FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ? AND s.expires_at > ?')
     .bind(match[1], nowISO()).first();
   return row ?? null;
 }
@@ -55,6 +55,14 @@ export async function requireKassier(c, next) {
   const session = await getSessionUser(c);
   if (!session) return c.json({ ok: false, error: 'Please log in.' }, 401);
   if (!session.is_kassier) return c.json({ ok: false, error: 'Kassier only.' }, 403);
+  c.set('session', session);
+  await next();
+}
+
+export async function requireVorstand(c, next) {
+  const session = await getSessionUser(c);
+  if (!session) return c.json({ ok: false, error: 'Please log in.' }, 401);
+  if (!session.is_vorstand) return c.json({ ok: false, error: 'Nur für Vorstandsmitglieder.' }, 403);
   c.set('session', session);
   await next();
 }

@@ -3,9 +3,9 @@ import { api } from '../api/client.js';
 
 export function joinLabel(project, isMember) {
   const max = project.max_members ?? '∞';
-  if (isMember) return 'Joined ✓';
-  if (project.max_members != null && project.member_count >= project.max_members) return `Full (${project.max_members}/${project.max_members})`;
-  return `Join (${project.member_count}/${max})`;
+  if (isMember) return 'Abmelden';
+  if (project.max_members != null && project.member_count >= project.max_members) return `Voll (${project.max_members}/${project.max_members})`;
+  return `Teilnehmen (${project.member_count}/${max})`;
 }
 
 export function joinDisabled(project, isMember) {
@@ -13,10 +13,13 @@ export function joinDisabled(project, isMember) {
   return project.max_members != null && project.member_count >= project.max_members;
 }
 
-export function renderProjectCard(el, project, { isAdmin = false, isMember = false, onJoin = null, onEdit = null, onDelete = null, onLeave = null } = {}) {
+export function renderProjectCard(el, project, { isAdmin = false, isMember = false, bannedUntil = null, onJoin = null, onEdit = null, onDelete = null, onLeave = null } = {}) {
   const color = intensityColor(project.intensity);
   const label = joinLabel({ ...project, isMember }, isMember);
-  const disabled = joinDisabled(project, isMember) ? 'disabled' : '';
+  const ban = !isMember ? banLabel(bannedUntil) : null;
+  const disabled = (!ban && joinDisabled(project, isMember)) || !!ban ? 'disabled' : '';
+  const buttonLabel = ban ?? label;
+  const buttonTitle = ban ?? (isMember ? 'Klicke, um dich abzumelden' : '');
   const avatars = (project.members ?? []).map((m) => m.avatar_r2_key
     ? `<img src="/avatars/${m.avatar_r2_key.replace(/^avatars\//, '')}" alt="${esc(m.name)}" title="${esc(m.name)}" class="h-8 w-8 rounded-full object-cover" loading="lazy" />`
     : `<span title="${esc(m.name)}" class="grid h-8 w-8 place-items-center rounded-full bg-ink-soft text-xs">${esc((m.name ?? '?')[0])}</span>`).join('');
@@ -27,15 +30,19 @@ export function renderProjectCard(el, project, { isAdmin = false, isMember = fal
       <p class="text-sm text-paper/70">${esc(project.description ?? '')}</p>
       <p class="mt-1 text-xs uppercase tracking-widest text-muted">${fmtDate(project.start_at)} → ${fmtDate(project.end_at)} · max ${project.max_members ?? '∞'}</p>
       <div class="mt-2 flex -space-x-2">${avatars}</div>
-      <button type="button" data-join ${disabled} title="${isMember ? 'Click to leave the project' : ''}" class="mt-3 border border-amber px-4 py-2 text-xs uppercase tracking-widest">${label}</button>
+      <button type="button" data-join ${disabled} title="${buttonTitle}" class="mt-3 border border-amber px-4 py-2 text-xs uppercase tracking-widest">${buttonLabel}</button>
       ${isAdmin ? '<button type="button" data-edit class="mt-3 ml-2 border border-paper/20 px-4 py-2 text-xs uppercase">Edit</button><button type="button" data-delete class="mt-3 ml-2 border border-paper/20 px-4 py-2 text-xs uppercase">Delete</button>' : ''}
     </article>`;
-  el.querySelector('[data-join]')?.addEventListener('click', () => (isMember ? onLeave : onJoin)?.(project));
+  el.querySelector('[data-join]')?.addEventListener('click', () => {
+    if (banLabel(bannedUntil) && !isMember) return;
+    if (isMember) openLeaveModal(project, onLeave);
+    else if (!joinDisabled(project, isMember)) openJoinModal(project, onJoin);
+  });
   el.querySelector('[data-edit]')?.addEventListener('click', () => onEdit?.(project));
   el.querySelector('[data-delete]')?.addEventListener('click', () => onDelete?.(project));
 }
 
-export function renderProjectDetail(el, data, { isAdmin = false, isMember = false, users = [], onJoin = null, onLeave = null, onAssignHead = null, onEdit = null, onDelete = null } = {}) {
+export function renderProjectDetail(el, data, { isAdmin = false, isMember = false, users = [], bannedUntil = null, onJoin = null, onLeave = null, onAssignHead = null, onEdit = null, onDelete = null } = {}) {
   el.innerHTML = '';
   if (!data?.project) {
     el.innerHTML = '<p class="text-red-400">Project not found.</p>';
@@ -47,7 +54,9 @@ export function renderProjectDetail(el, data, { isAdmin = false, isMember = fals
   const color = intensityColor(project.intensity);
   const counted = { ...project, member_count: data.member_count ?? members.length };
   const label = joinLabel(counted, member);
-  const disabled = joinDisabled(counted, member) ? 'disabled' : '';
+  const ban = !member ? banLabel(bannedUntil) : null;
+  const disabled = (!ban && joinDisabled(counted, member)) || !!ban ? 'disabled' : '';
+  const buttonLabel = ban ?? label;
   const chips = members.map((m) => `
     <a href="/members/?id=${encodeURIComponent(m.id)}" title="${esc(m.name)}" class="flex items-center gap-2 border border-paper/15 px-3 py-1 text-sm transition-colors hover:border-amber">
       ${m.avatar_r2_key
@@ -74,11 +83,15 @@ export function renderProjectDetail(el, data, { isAdmin = false, isMember = fals
       <p class="mt-2 text-xs uppercase tracking-widest text-muted">${fmtDate(project.start_at)} → ${fmtDate(project.end_at)} · ${esc(project.location ?? '')} · max ${project.max_members ?? '∞'} · ${members.length} joined</p>
       ${headLine}
       <div class="mt-4 flex flex-wrap gap-2">${chips || '<span class="text-sm text-paper/60">No members yet.</span>'}</div>
-      <button type="button" data-join ${disabled} class="mt-4 border border-amber px-4 py-2 text-xs uppercase tracking-widest">${label}</button>
+      <button type="button" data-join ${disabled} class="mt-4 border border-amber px-4 py-2 text-xs uppercase tracking-widest">${buttonLabel}</button>
       ${admin ? '<button type="button" data-edit class="mt-4 ml-2 border border-paper/20 px-4 py-2 text-xs uppercase">Edit</button><button type="button" data-delete class="mt-4 ml-2 border border-paper/20 px-4 py-2 text-xs uppercase">Delete</button>' : ''}
       ${headSelect}
     </article>`;
-  el.querySelector('[data-join]')?.addEventListener('click', () => (member ? onLeave : onJoin)?.(project));
+  el.querySelector('[data-join]')?.addEventListener('click', () => {
+    if (banLabel(bannedUntil) && !member) return;
+    if (member) openLeaveModal(project, onLeave);
+    else if (!joinDisabled(counted, member)) openJoinModal(project, onJoin);
+  });
   el.querySelector('[data-edit]')?.addEventListener('click', () => onEdit?.(project));
   el.querySelector('[data-delete]')?.addEventListener('click', () => onDelete?.(project));
   el.querySelector('[data-head]')?.addEventListener('change', (e) => onAssignHead?.(e.target.value || null));
@@ -142,6 +155,57 @@ export function renderProjectForm(el, { project = null, users = [], onSave = nul
   el.prepend(form);
 }
 
+export function renderAbsenceDecision(el, absence, { onApprove = null, onReject = null } = {}) {
+  el.innerHTML = '';
+  if (!absence) {
+    el.innerHTML = '<p class="text-red-400">Nicht gefunden.</p>';
+    return;
+  }
+  const wrap = document.createElement('article');
+  wrap.className = 'border border-paper/15 p-6';
+  const decided = absence.status !== 'pending';
+  wrap.innerHTML = `
+    <h2 class="font-display text-2xl uppercase">Späte Abmeldung</h2>
+    <p class="mt-2 text-sm text-paper/70">${esc(absence.user_name)} hat sich vom Projekt „${esc(absence.project_title)}“ abgemeldet.</p>
+    <p class="mt-4 text-xs uppercase tracking-widest text-paper/60">Grund</p>
+    <p class="mt-1 border border-paper/15 p-3 text-sm">${esc(absence.reason)}</p>
+    ${decided
+      ? `<p class="mt-6 border border-paper/20 px-4 py-3 text-sm uppercase tracking-widest text-paper/70">Bereits entschieden: ${esc(absence.status)}</p>`
+      : `<div class="mt-6 flex gap-3">
+          <button type="button" data-approve class="border border-amber px-4 py-2 text-xs uppercase tracking-widest">Genehmigen</button>
+          <button type="button" data-reject class="border border-paper/20 px-4 py-2 text-xs uppercase tracking-widest">Ablehnen</button>
+        </div>
+        <div data-reject-form hidden class="mt-4">
+          <label class="block text-xs uppercase text-paper/60">Begründung der Ablehnung
+            <textarea data-note rows="4" class="mt-1 w-full border border-paper/20 bg-transparent p-3 normal-case"></textarea>
+          </label>
+          <p data-decision-error class="mt-2 text-sm text-red-400"></p>
+          <button type="button" data-decide class="mt-3 border border-amber px-4 py-2 text-xs uppercase tracking-widest">Ablehnung senden</button>
+        </div>`}`;
+  if (!decided) {
+    wrap.querySelector('[data-approve]').addEventListener('click', () => onApprove?.(absence.id));
+    const form = wrap.querySelector('[data-reject-form]');
+    wrap.querySelector('[data-reject]').addEventListener('click', () => {
+      form.hidden = false;
+    });
+    wrap.querySelector('[data-decide]').addEventListener('click', () => {
+      const note = wrap.querySelector('[data-note]').value.trim();
+      if (!note) {
+        wrap.querySelector('[data-decision-error]').textContent = 'Bitte begründe die Ablehnung.';
+        return;
+      }
+      onReject?.(absence.id, note);
+    });
+  }
+  el.append(wrap);
+}
+
+export function renderAbsenceDecided(el, { approved }) {
+  el.innerHTML = approved
+    ? '<p class="border border-amber px-4 py-3 text-sm uppercase tracking-widest text-amber">Genehmigt. Die Person wurde per E-Mail informiert.</p>'
+    : '<p class="border border-amber px-4 py-3 text-sm uppercase tracking-widest text-amber">Abgelehnt. Die Person wurde per E-Mail informiert und ist 2 Wochen gesperrt.</p>';
+}
+
 export function renderReminderToggle(el, { enabled = true, canToggle = false, onToggle = null } = {}) {
   el.innerHTML = '';
   if (!canToggle) return;
@@ -166,6 +230,93 @@ export function renderReminderToggle(el, { enabled = true, canToggle = false, on
 
 export function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+export const ABMELDEFRIST_MS = 3 * 864e5;
+
+export function isLateLeave(project, nowMs = Date.now()) {
+  return Date.parse(project.start_at) - ABMELDEFRIST_MS < nowMs;
+}
+
+export function deDate(iso) {
+  const d = String(iso ?? '');
+  return `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}`;
+}
+
+export function banLabel(bannedUntil, nowMs = Date.now()) {
+  if (!bannedUntil || Date.parse(bannedUntil) <= nowMs) return null;
+  return `Gesperrt bis ${deDate(bannedUntil)}`;
+}
+
+export function openModal({ title, bodyHTML, confirmLabel, onConfirm }) {
+  const overlay = document.createElement('div');
+  overlay.setAttribute('data-modal-overlay', '');
+  overlay.className = 'fixed inset-0 z-50 grid place-items-center bg-ink/70 p-4';
+  overlay.innerHTML = `
+    <div role="dialog" aria-modal="true" aria-label="${esc(title)}" class="w-full max-w-md border border-paper/20 bg-ink p-6">
+      <h3 class="font-display text-2xl uppercase">${esc(title)}</h3>
+      <div class="mt-4 text-sm leading-relaxed text-paper/70">${bodyHTML}</div>
+      <p data-modal-error class="mt-2 text-sm text-red-400"></p>
+      <div class="mt-6 flex gap-3">
+        <button type="button" data-modal-confirm class="border border-amber px-4 py-2 text-xs uppercase tracking-widest">${esc(confirmLabel)}</button>
+        <button type="button" data-modal-cancel class="border border-paper/20 px-4 py-2 text-xs uppercase tracking-widest">Abbrechen</button>
+      </div>
+    </div>`;
+  const close = () => {
+    document.removeEventListener('keydown', onKey);
+    overlay.remove();
+  };
+  const onKey = (e) => {
+    if (e.key === 'Escape') close();
+  };
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('mousedown', (e) => {
+    if (e.target === overlay) close();
+  });
+  overlay.querySelector('[data-modal-cancel]').addEventListener('click', close);
+  overlay.querySelector('[data-modal-confirm]').addEventListener('click', () => onConfirm?.({ el: overlay, close }));
+  document.body.append(overlay);
+  return { el: overlay, close };
+}
+
+export function openJoinModal(project, onJoin) {
+  openModal({
+    title: 'Teilnehmen',
+    bodyHTML: `<p>Möchtest du am Projekt „${esc(project.title)}“ teilnehmen?</p>`,
+    confirmLabel: 'Teilnahme bestätigen',
+    onConfirm: ({ close }) => {
+      close();
+      onJoin?.(project);
+    },
+  });
+}
+
+export function openLeaveModal(project, onLeave) {
+  const late = isLateLeave(project);
+  openModal({
+    title: 'Abmelden',
+    bodyHTML: late
+      ? `<p class="border border-red-400/50 px-3 py-2 text-red-400">Die Abmeldefrist (3 Tage vor Beginn) ist abgelaufen. Eine Abmeldung kann Konsequenzen haben – der Vorstand prüft deinen Grund.</p>
+        <label class="mt-4 block text-xs uppercase text-paper/60">Warum kannst du nicht teilnehmen?
+          <textarea data-reason rows="4" class="mt-1 w-full border border-paper/20 bg-transparent p-3 normal-case"></textarea>
+        </label>`
+      : `<p>Du kannst dich bis 3 Tage vor Projektbeginn folgenlos abmelden. Möchtest du dich wirklich vom Projekt „${esc(project.title)}“ abmelden?</p>`,
+    confirmLabel: 'Abmelden',
+    onConfirm: ({ el, close }) => {
+      if (!late) {
+        close();
+        onLeave?.(project, { reason: '' });
+        return;
+      }
+      const reason = el.querySelector('[data-reason]').value.trim();
+      if (!reason) {
+        el.querySelector('[data-modal-error]').textContent = 'Bitte gib einen Grund an.';
+        return;
+      }
+      close();
+      onLeave?.(project, { reason });
+    },
+  });
 }
 
 export function renderProjectGallery(el, photos = [], { canUpload = false, canDeleteFor = null, onUpload = null, onDelete = null } = {}) {

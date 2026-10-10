@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import { intensityColor } from '../src/lib/intensity.js';
 import { buildMailto, monthSpan } from '../src/lib/calendar.js';
 import { renderProjectCard, renderProjectDetail, renderProjectForm, renderReminderToggle } from '../src/views/projects.js';
@@ -19,18 +19,21 @@ const DETAIL = {
 };
 
 describe('views', () => {
-  it('project card uses intensity color and join label Join (3/8)', () => {
+  afterEach(() => {
+    document.querySelectorAll('[data-modal-overlay]').forEach((el) => el.remove());
+  });
+  it('project card uses intensity color and join label Teilnehmen (3/8)', () => {
     const el = document.createElement('div');
     renderProjectCard(el, { id: 'p1', title: 'Shoot', intensity: 4, start_at: '2026-11-08T18:00:00Z', end_at: '2026-11-08T22:00:00Z', max_members: 8, member_count: 3, members: [], isMember: false });
     expect(el.innerHTML).toContain(intensityColor(4));
-    expect(el.textContent).toContain('Join (3/8)');
+    expect(el.textContent).toContain('Teilnehmen (3/8)');
   });
 
-  it('full project disables join with Full (8/8)', () => {
+  it('full project disables join with Voll (8/8)', () => {
     const el = document.createElement('div');
     renderProjectCard(el, { id: 'p1', title: 'Shoot', intensity: 2, start_at: '2026-11-08T18:00:00Z', end_at: '2026-11-08T22:00:00Z', max_members: 8, member_count: 8, members: [], isMember: false });
     expect(el.querySelector('button:disabled')).toBeTruthy();
-    expect(el.textContent).toContain('Full (8/8)');
+    expect(el.textContent).toContain('Voll (8/8)');
   });
 
   it('contact form builds mailto to archerfilmstudios@gmail.com', () => {
@@ -114,25 +117,31 @@ describe('views', () => {
     }
   });
 
-  it('member button stays enabled and fires onLeave instead of onJoin', () => {
+  it('member button opens the Abmelden modal and confirms onLeave', () => {
     const el = document.createElement('div');
     const onJoin = vi.fn();
     const onLeave = vi.fn();
-    renderProjectCard(el, PROJECT, { isMember: true, onJoin, onLeave });
+    renderProjectCard(el, { ...PROJECT, start_at: '2027-11-08T18:00:00Z', end_at: '2027-11-08T22:00:00Z' }, { isMember: true, onJoin, onLeave });
     const button = el.querySelector('[data-join]');
     expect(button.disabled).toBe(false);
-    expect(button.textContent).toContain('Joined');
+    expect(button.textContent).toContain('Abmelden');
     button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(onLeave).toHaveBeenCalledWith(PROJECT);
+    const modal = document.querySelector('[data-modal-overlay]');
+    expect(modal).toBeTruthy();
+    modal.querySelector('[data-modal-confirm]').click();
+    expect(onLeave).toHaveBeenCalledWith(expect.objectContaining({ id: 'p1' }), expect.objectContaining({ reason: '' }));
     expect(onJoin).not.toHaveBeenCalled();
   });
 
-  it('non-member button still fires onJoin', () => {
+  it('non-member button opens the join modal and confirms onJoin', () => {
     const el = document.createElement('div');
     const onJoin = vi.fn();
     const onLeave = vi.fn();
     renderProjectCard(el, PROJECT, { isMember: false, onJoin, onLeave });
     el.querySelector('[data-join]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const modal = document.querySelector('[data-modal-overlay]');
+    expect(modal.textContent).toContain('Teilnahme bestätigen');
+    modal.querySelector('[data-modal-confirm]').click();
     expect(onJoin).toHaveBeenCalledWith(PROJECT);
     expect(onLeave).not.toHaveBeenCalled();
   });
@@ -187,7 +196,7 @@ describe('views', () => {
     const bareProject = { ...DETAIL.project };
     delete bareProject.member_count;
     renderProjectDetail(el, { ...DETAIL, project: bareProject, member_count: 2 }, {});
-    expect(el.textContent).toContain('Join (2/8)');
+    expect(el.textContent).toContain('Teilnehmen (2/8)');
   });
 
   it('project detail disables join when the count reaches max', () => {
@@ -196,7 +205,7 @@ describe('views', () => {
     delete bareProject.member_count;
     renderProjectDetail(el, { ...DETAIL, project: bareProject, member_count: 8 }, {});
     expect(el.querySelector('[data-join]').disabled).toBe(true);
-    expect(el.textContent).toContain('Full (8/8)');
+    expect(el.textContent).toContain('Voll (8/8)');
   });
 
   it('project form offers head selection and sends head_user_id', async () => {

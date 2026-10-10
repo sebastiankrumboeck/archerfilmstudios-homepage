@@ -1,4 +1,4 @@
-import { esc } from './projects.js';
+import { esc, deDate } from './projects.js';
 
 export function memberAvatar(user, cls = 'h-12 w-12') {
   if (user.avatar_r2_key) {
@@ -61,6 +61,7 @@ export function renderMemberDetail(el, data) {
       <h2 class="mt-4 font-display text-3xl uppercase">${esc(user.name)}</h2>
       <p class="text-sm uppercase tracking-widest text-paper/60">${esc(user.function ?? '')}</p>
       ${user.is_vorstand ? `<p class="mt-1 text-sm uppercase text-amber">${esc(user.vorstand_title ?? 'Board')}</p>` : ''}
+      ${user.banned_until && Date.parse(user.banned_until) > Date.now() ? `<p data-ban-badge class="mt-2 border border-red-400/50 px-3 py-2 text-sm uppercase tracking-widest text-red-400">Temporär gesperrt bis ${deDate(user.banned_until)} – keine neuen Projekte möglich</p>` : ''}
       <div class="mt-6 grid gap-6 sm:grid-cols-2">
         <section><h3 class="font-display text-xl uppercase">Projects</h3>${projectLinks(joined)}</section>
         <section><h3 class="font-display text-xl uppercase">Heads</h3>${projectLinks(headed)}</section>
