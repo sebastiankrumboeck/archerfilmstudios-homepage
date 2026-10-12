@@ -686,6 +686,8 @@ app.patch('/api/projects/:id', requireAdmin, async (c) => {
 app.delete('/api/projects/:id', requireAdmin, async (c) => {
   await c.env.DB.prepare('DELETE FROM memberships WHERE project_id = ?').bind(c.req.param('id')).run();
   await c.env.DB.prepare('DELETE FROM project_photos WHERE project_id = ?').bind(c.req.param('id')).run();
+  await c.env.DB.prepare('DELETE FROM call_sheet_roles WHERE project_id = ?').bind(c.req.param('id')).run();
+  await c.env.DB.prepare('DELETE FROM call_sheets WHERE project_id = ?').bind(c.req.param('id')).run();
   await c.env.DB.prepare('DELETE FROM projects WHERE id = ?').bind(c.req.param('id')).run();
   return ok(c, {});
 });

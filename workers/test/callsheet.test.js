@@ -69,6 +69,14 @@ function fakeDb(state) {
         sheet.published_at = args[0];
         return { meta: { changes: 1 } };
       }
+      if (sql.startsWith('DELETE FROM call_sheet_roles')) {
+        state.roles = state.roles.filter((r) => r.project_id !== args[0]);
+        return { meta: { changes: 1 } };
+      }
+      if (sql.startsWith('DELETE FROM call_sheets')) {
+        state.sheets = state.sheets.filter((s) => s.project_id !== args[0]);
+        return { meta: { changes: 1 } };
+      }
       return {};
     },
   };
@@ -210,5 +218,15 @@ describe('call sheet publish', () => {
   it('publish by plain member is 403', async () => {
     const res = await requestWith(makeState(), '/api/projects/p1/callsheet/publish', 's-m', 'POST');
     expect(res.status).toBe(403);
+  });
+
+  it('deleting the project removes its sheet and roles', async () => {
+    const state = makeState();
+    await requestWith(state, '/api/projects/p1/callsheet', 's-head', 'PUT', PUT_BODY);
+    expect(state.sheets).toHaveLength(1);
+    const res = await requestWith(state, '/api/projects/p1', 's-a', 'DELETE');
+    expect(res.status).toBe(200);
+    expect(state.sheets).toHaveLength(0);
+    expect(state.roles).toHaveLength(0);
   });
 });
