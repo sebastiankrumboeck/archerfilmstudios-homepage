@@ -206,6 +206,89 @@ export function renderAbsenceDecided(el, { approved }) {
     : '<p class="border border-amber px-4 py-3 text-sm uppercase tracking-widest text-amber">Abgelehnt. Die Person wurde per E-Mail informiert und ist 2 Wochen gesperrt.</p>';
 }
 
+export const CALL_SHEET_ROLES = ['Kamera', 'Ton', 'Regie', 'Schnitt', 'Foto', 'Schauspiel', 'Organisation', 'Fahrer'];
+
+export function renderCallSheet(el, { sheet = {}, roles = [] } = {}, { canEdit = false, onEdit = null, onPublish = null } = {}) {
+  const published = !!sheet?.published_at;
+  const byRole = new Map((roles ?? []).map((r) => [r.role, r]));
+  const rows = CALL_SHEET_ROLES.map((role) => {
+    const r = byRole.get(role);
+    return `<div class="flex justify-between gap-4 border-b border-paper/10 py-2"><dt class="uppercase text-paper/60">${esc(role)}</dt><dd>${r?.user_name ? esc(r.user_name) : '<span class="text-paper/40">unbesetzt</span>'}</dd></div>`;
+  }).join('');
+  el.innerHTML = `
+    <section data-print-area class="mt-8 border border-paper/15 p-6">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <h3 class="font-display text-2xl uppercase">Call Sheet${published ? '' : ' <span class="text-sm text-paper/40">(Entwurf)</span>'}</h3>
+        <button type="button" data-print-sheet class="border border-paper/20 px-4 py-2 text-xs uppercase">Drucken</button>
+      </div>
+      <dl class="mt-4 space-y-1 text-sm">
+        <div class="flex justify-between gap-4"><dt class="uppercase text-paper/60">Call-Time</dt><dd>${sheet?.call_time ? esc(fmtDate(sheet.call_time)) : '–'}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="uppercase text-paper/60">Treffpunkt</dt><dd>${sheet?.meeting_point ? esc(sheet.meeting_point) : '–'}</dd></div>
+      </dl>
+      <h4 class="mt-6 font-display text-xl uppercase">Rollen</h4>
+      <dl class="mt-2 text-sm">${rows}</dl>
+      <h4 class="mt-6 font-display text-xl uppercase">Tagesablauf</h4>
+      <p class="mt-2 whitespace-pre-line text-sm text-paper/70">${sheet?.schedule ? esc(sheet.schedule) : '–'}</p>
+      <h4 class="mt-6 font-display text-xl uppercase">Logistik</h4>
+      <p class="mt-2 whitespace-pre-line text-sm text-paper/70">${sheet?.logistics ? esc(sheet.logistics) : '–'}</p>
+      <h4 class="mt-6 font-display text-xl uppercase">Notfallkontakte</h4>
+      <p class="mt-2 whitespace-pre-line text-sm text-paper/70">${sheet?.emergency_contacts ? esc(sheet.emergency_contacts) : '–'}</p>
+      ${canEdit ? `<div class="mt-6 flex gap-3">
+        <button type="button" data-edit-sheet class="border border-paper/20 px-4 py-2 text-xs uppercase tracking-widest">Bearbeiten</button>
+        ${published ? '' : '<button type="button" data-publish-sheet class="border border-amber px-4 py-2 text-xs uppercase tracking-widest">Veröffentlichen</button>'}
+      </div>` : ''}
+    </section>`;
+  el.querySelector('[data-print-sheet]').addEventListener('click', () => window.print());
+  el.querySelector('[data-edit-sheet]')?.addEventListener('click', () => onEdit?.());
+  el.querySelector('[data-publish-sheet]')?.addEventListener('click', () => onPublish?.());
+}
+
+export function renderCallSheetForm(el, { sheet = {}, roles = [], members = [] } = {}, { onSave = null } = {}) {
+  const byRole = new Map((roles ?? []).map((r) => [r.role, r?.user_id ?? '']));
+  const roleSelects = CALL_SHEET_ROLES.map((role) => `
+    <label class="text-xs uppercase text-paper/60">${esc(role)}
+      <select data-role="${esc(role)}" class="mt-1 w-full border border-paper/20 bg-transparent p-3 normal-case">
+        <option value="">unbesetzt</option>
+        ${(members ?? []).map((m) => `<option value="${esc(m.id)}"${byRole.get(role) === m.id ? ' selected' : ''}>${esc(m.name)}</option>`).join('')}
+      </select>
+    </label>`).join('');
+  el.innerHTML = `
+    <form data-callsheet-form class="mt-8 grid max-w-2xl gap-3 border border-paper/15 p-6">
+      <h3 class="font-display text-xl uppercase">Call Sheet bearbeiten</h3>
+      <label class="text-xs uppercase text-paper/60">Call-Time
+        <input name="call_time" type="datetime-local" value="${esc(String(sheet?.call_time ?? '').slice(0, 16))}" class="mt-1 w-full border border-paper/20 bg-transparent p-3" />
+      </label>
+      <label class="text-xs uppercase text-paper/60">Treffpunkt
+        <input name="meeting_point" maxlength="5000" value="${esc(sheet?.meeting_point ?? '').replace(/`/g, '&#96;')}" class="mt-1 w-full border border-paper/20 bg-transparent p-3 normal-case" />
+      </label>
+      <label class="text-xs uppercase text-paper/60">Tagesablauf
+        <textarea name="schedule" rows="4" class="mt-1 w-full border border-paper/20 bg-transparent p-3 normal-case">${esc(sheet?.schedule ?? '')}</textarea>
+      </label>
+      <label class="text-xs uppercase text-paper/60">Logistik-Infos
+        <textarea name="logistics" rows="3" class="mt-1 w-full border border-paper/20 bg-transparent p-3 normal-case">${esc(sheet?.logistics ?? '')}</textarea>
+      </label>
+      <label class="text-xs uppercase text-paper/60">Notfallkontakte
+        <textarea name="emergency_contacts" rows="3" class="mt-1 w-full border border-paper/20 bg-transparent p-3 normal-case">${esc(sheet?.emergency_contacts ?? '')}</textarea>
+      </label>
+      <div class="grid gap-3 sm:grid-cols-2">${roleSelects}</div>
+      <p data-error class="text-sm text-red-400"></p>
+      <button class="w-fit border border-amber px-5 py-3 text-xs uppercase tracking-widest">Speichern</button>
+    </form>`;
+  el.querySelector('[data-callsheet-form]').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const rawTime = String(fd.get('call_time') ?? '');
+    onSave?.({
+      call_time: rawTime ? new Date(rawTime).toISOString() : null,
+      meeting_point: String(fd.get('meeting_point') ?? ''),
+      schedule: String(fd.get('schedule') ?? ''),
+      logistics: String(fd.get('logistics') ?? ''),
+      emergency_contacts: String(fd.get('emergency_contacts') ?? ''),
+      roles: CALL_SHEET_ROLES.map((role) => ({ role, user_id: el.querySelector(`select[data-role="${role}"]`).value || null })),
+    });
+  });
+}
+
 export function renderReminderToggle(el, { enabled = true, canToggle = false, onToggle = null } = {}) {
   el.innerHTML = '';
   if (!canToggle) return;

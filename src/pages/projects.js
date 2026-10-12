@@ -1,6 +1,6 @@
 import { mountLayout } from '../layout.js';
 import { api } from '../api/client.js';
-import { renderAbsenceDecided, renderAbsenceDecision, renderProjectDetail, renderProjectGallery, renderProjects, renderProjectForm, renderReminderToggle } from '../views/projects.js';
+import { renderAbsenceDecided, renderAbsenceDecision, renderCallSheet, renderCallSheetForm, renderProjectDetail, renderProjectGallery, renderProjects, renderProjectForm, renderReminderToggle } from '../views/projects.js';
 
 await mountLayout('projects');
 const view = document.querySelector('#app-view');
@@ -137,6 +137,58 @@ async function loadDetail(id) {
     p.textContent = err.message;
     gallery.append(p);
   }
+  const canSheet = !!me && (data.canEdit || data.head?.id === me.id);
+  let sheetUsers = users;
+  if (canSheet && !data.canEdit) {
+    try {
+      ({ users: sheetUsers } = await api('/api/users'));
+    } catch {
+      sheetUsers = [];
+    }
+  }
+  const sheetBox = document.createElement('div');
+  view.append(sheetBox);
+  async function refreshSheet(editing = false) {
+    try {
+      const res = await api(`/api/projects/${encodeURIComponent(id)}/callsheet`);
+      let { sheet, roles } = res;
+      if (sheet.call_time == null && sheet.meeting_point == null) {
+        sheet = { ...sheet, call_time: data.project.start_at ?? null, meeting_point: data.project.location ?? null };
+      }
+      if (editing && canSheet) {
+        renderCallSheetForm(sheetBox, { sheet, roles, members: sheetUsers }, {
+          onSave: async (payload) => {
+            try {
+              await api(`/api/projects/${encodeURIComponent(id)}/callsheet`, { method: 'PUT', body: JSON.stringify(payload) });
+              await refreshSheet(false);
+            } catch (err) {
+              sheetBox.querySelector('[data-error]').textContent = err.message;
+            }
+          },
+        });
+      } else {
+        renderCallSheet(sheetBox, { sheet, roles }, {
+          canEdit: canSheet,
+          onEdit: () => refreshSheet(true),
+          onPublish: async () => {
+            try {
+              await api(`/api/projects/${encodeURIComponent(id)}/callsheet/publish`, { method: 'POST', body: '{}' });
+              await refreshSheet(false);
+              alert('Call Sheet veröffentlicht. Alle Mitglieder wurden per E-Mail informiert.');
+            } catch (err) {
+              alert(err.message);
+            }
+          },
+        });
+      }
+    } catch (err) {
+      const p = document.createElement('p');
+      p.className = 'mt-8 text-sm text-red-400';
+      p.textContent = err.message;
+      sheetBox.append(p);
+    }
+  }
+  await refreshSheet(false);
 }
 
 async function load() {
