@@ -148,3 +148,15 @@ CREATE TABLE call_sheet_roles (
   UNIQUE(project_id, role)
 );
 CREATE INDEX idx_callsheet_roles_project ON call_sheet_roles(project_id);
+CREATE TABLE role_applications (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  decided_by TEXT,
+  created_at TEXT NOT NULL,
+  decided_at TEXT
+);
+CREATE UNIQUE INDEX idx_role_applications_unique ON role_applications(project_id, role, user_id);
+CREATE INDEX idx_role_applications_project ON role_applications(project_id);
