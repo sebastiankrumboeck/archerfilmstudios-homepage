@@ -687,6 +687,7 @@ app.delete('/api/projects/:id', requireAdmin, async (c) => {
   await c.env.DB.prepare('DELETE FROM memberships WHERE project_id = ?').bind(c.req.param('id')).run();
   await c.env.DB.prepare('DELETE FROM project_photos WHERE project_id = ?').bind(c.req.param('id')).run();
   await c.env.DB.prepare('DELETE FROM call_sheet_roles WHERE project_id = ?').bind(c.req.param('id')).run();
+  await c.env.DB.prepare('DELETE FROM role_applications WHERE project_id = ?').bind(c.req.param('id')).run();
   await c.env.DB.prepare('DELETE FROM call_sheets WHERE project_id = ?').bind(c.req.param('id')).run();
   await c.env.DB.prepare('DELETE FROM projects WHERE id = ?').bind(c.req.param('id')).run();
   return ok(c, {});
@@ -1270,7 +1271,7 @@ const emptySheet = (projectId) => ({
   published_at: null,
 });
 
-async function sheetWithRoles(db, projectId) {
+async function sheetWithRoles(db, projectId, { withApplicants = false } = {}) {
   const sheet = (await db.prepare('SELECT * FROM call_sheets WHERE project_id = ?').bind(projectId).first()) ?? emptySheet(projectId);
   const { results } = await db.prepare('SELECT * FROM call_sheet_roles WHERE project_id = ?').bind(projectId).all();
   const byRole = new Map((results ?? []).map((r) => [r.role, r]));
@@ -1284,13 +1285,30 @@ async function sheetWithRoles(db, projectId) {
     }
     roles.push({ role, user_id: row?.user_id ?? null, user_name });
   }
-  return { sheet, roles };
+  if (!withApplicants) return { sheet, roles };
+  const { results: apps } = await db.prepare("SELECT * FROM role_applications WHERE project_id = ? AND status = 'pending' ORDER BY created_at").bind(projectId).all();
+  const applications = [];
+  for (const a of apps ?? []) {
+    let user_name = null;
+    if (withApplicants === 'named') {
+      const u = await db.prepare('SELECT id, name FROM users WHERE id = ?').bind(a.user_id).first();
+      user_name = u?.name ?? null;
+    }
+    applications.push({ id: a.id, role: a.role, user_id: a.user_id, user_name, status: a.status });
+  }
+  return { sheet, roles, applications };
+}
+
+function canDecideSheet(project, session) {
+  return project.head_user_id === session.user_id || !!session.is_admin;
 }
 
 app.get('/api/projects/:id/callsheet', requireUser, async (c) => {
+  const session = c.get('session');
   const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(c.req.param('id')).first();
   if (!project) return fail(c, 'Nicht gefunden.', 404);
-  return ok(c, await sheetWithRoles(c.env.DB, project.id));
+  const mode = canDecideSheet(project, session) ? 'named' : true;
+  return ok(c, await sheetWithRoles(c.env.DB, project.id, { withApplicants: mode }));
 });
 
 app.put('/api/projects/:id/callsheet', requireUser, async (c) => {
@@ -1385,6 +1403,62 @@ app.post('/api/projects/:id/callsheet/publish', requireUser, async (c) => {
     else failed += 1;
   }
   return ok(c, { published_at: now, email: { sent, failed } });
+});
+
+// --- Crew role applications ---
+app.post('/api/projects/:id/roles/apply', requireUser, async (c) => {
+  const session = c.get('session');
+  const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(c.req.param('id')).first();
+  if (!project) return fail(c, 'Nicht gefunden.', 404);
+  const body = await c.req.json().catch(() => ({}));
+  const role = String(body.role ?? '').trim();
+  if (!CALL_SHEET_ROLES.includes(role)) return fail(c, `Unbekannte Rolle: ${role || '–'}.`, 400);
+  const filled = await c.env.DB.prepare('SELECT user_id FROM call_sheet_roles WHERE project_id = ? AND role = ?').bind(project.id, role).first();
+  if (filled?.user_id) return fail(c, 'Rolle bereits besetzt.', 409);
+  const id = uid('rap');
+  try {
+    await c.env.DB.prepare('INSERT INTO role_applications (id, project_id, role, user_id, status, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(id, project.id, role, session.user_id, 'pending', nowISO()).run();
+  } catch (err) {
+    if (String(err?.message ?? '').includes('UNIQUE constraint failed')) return fail(c, 'Bereits beworben.', 409);
+    throw err;
+  }
+  return ok(c, { application_id: id }, 201);
+});
+
+app.post('/api/role-applications/:id/decision', requireUser, async (c) => {
+  const session = c.get('session');
+  const app = await c.env.DB.prepare('SELECT * FROM role_applications WHERE id = ?').bind(c.req.param('id')).first();
+  if (!app) return fail(c, 'Nicht gefunden.', 404);
+  const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(app.project_id).first();
+  if (!project) return fail(c, 'Nicht gefunden.', 404);
+  if (!canDecideSheet(project, session)) return fail(c, 'Nur Head oder Admin.', 403);
+  if (app.status !== 'pending') return fail(c, 'Bereits entschieden.', 409);
+  const body = await c.req.json().catch(() => ({}));
+  if (body.approved !== true && body.approved !== false) return fail(c, 'Ungültige Entscheidung.', 400);
+  const now = nowISO();
+  const claimed = await c.env.DB.prepare("UPDATE role_applications SET status = ?, decided_by = ?, decided_at = ? WHERE id = ? AND status = 'pending'")
+    .bind(body.approved ? 'approved' : 'rejected', session.user_id, now, app.id).run();
+  if (!claimed.meta.changes) return fail(c, 'Bereits entschieden.', 409);
+  if (body.approved) {
+    await c.env.DB.batch([
+      c.env.DB.prepare('DELETE FROM call_sheet_roles WHERE project_id = ? AND role = ?').bind(app.project_id, app.role),
+      c.env.DB.prepare('INSERT INTO call_sheet_roles (id, project_id, role, user_id) VALUES (?, ?, ?, ?)').bind(uid('csr'), app.project_id, app.role, app.user_id),
+      c.env.DB.prepare("UPDATE role_applications SET status = 'rejected', decided_by = ?, decided_at = ? WHERE project_id = ? AND role = ? AND status = 'pending' AND id != ?")
+        .bind(session.user_id, now, app.project_id, app.role, app.id),
+    ]);
+  }
+  const member = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(app.user_id).first();
+  const email = member?.email ? await sendMail(c.env, {
+    to: member.email,
+    subject: body.approved
+      ? `Rolle zugesagt: ${app.role} bei ${project.title} – Archer FilmStudios`
+      : `Rolle abgesagt: ${app.role} bei ${project.title} – Archer FilmStudios`,
+    text: body.approved
+      ? [`Hallo ${member.name},`, '', `deine Bewerbung für die Rolle „${app.role}“ beim Projekt „${project.title}“ wurde bestätigt.`, '', 'Archer FilmStudios'].join('\n')
+      : [`Hallo ${member.name},`, '', `deine Bewerbung für die Rolle „${app.role}“ beim Projekt „${project.title}“ wurde leider abgelehnt.`, '', 'Archer FilmStudios'].join('\n'),
+  }) : { ok: false, error: 'No recipient.' };
+  return ok(c, { status: body.approved ? 'approved' : 'rejected', email: { sent: email.ok } });
 });
 
 app.scheduled = (event, env, ctx) => ctx.waitUntil(sendShootReminders(env, new Date().toISOString()));
