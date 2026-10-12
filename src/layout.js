@@ -1,6 +1,9 @@
 import { bindMenu, bindImageFallbacks } from './main.js';
 import { api } from './api/client.js';
 import { SOCIALS } from './data/socials.js';
+import { bindLangToggle, applyI18n } from './i18n/index.js';
+
+const LANG_TOGGLE = `<span class="inline-flex items-center gap-1 text-sm"><button type="button" data-lang="de" class="transition-colors hover:text-amber">DE</button><span aria-hidden="true" class="text-paper/40">/</span><button type="button" data-lang="en" class="transition-colors hover:text-amber">EN</button></span>`;
 
 const NAV = [
   ['/', 'Home', false],
@@ -34,6 +37,7 @@ export function headerHTML(active) {
         <nav class="hidden items-center gap-8 text-sm md:flex" aria-label="Primary navigation">
           ${desktop}
           <a class="transition-colors hover:text-amber" href="/login/" data-auth-link>Login</a>
+          ${LANG_TOGGLE}
         </nav>
         <button
           class="menu-toggle inline-flex items-center gap-3 border border-paper/20 px-3 py-2 text-xs uppercase tracking-[0.14em] transition-colors hover:border-amber hover:text-amber md:hidden"
@@ -50,6 +54,7 @@ export function headerHTML(active) {
         <div class="flex flex-col gap-4 pt-4 text-sm uppercase tracking-[0.14em]">
           ${mobile}
           <a class="transition-colors hover:text-amber" href="/login/" data-auth-link>Login</a>
+          ${LANG_TOGGLE}
         </div>
       </nav>
     </header>`;
@@ -118,6 +123,8 @@ export async function mountLayout(active, root = document) {
   root.querySelector('#footer-slot').innerHTML = footerHTML();
   bindMenu(root.querySelector('[data-menu-toggle]'), root.querySelector('[data-mobile-nav]'));
   bindImageFallbacks(root);
+  bindLangToggle(root);
+  applyI18n(root);
   mountOfflineBanner(root);
   await refreshAuthLink(root);
 }
