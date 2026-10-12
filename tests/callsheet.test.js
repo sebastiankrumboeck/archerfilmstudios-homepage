@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
+import fs from 'node:fs';
 import { renderCallSheet, renderCallSheetForm, CALL_SHEET_ROLES } from '../src/views/projects.js';
 
 const SHEET = {
@@ -74,7 +75,7 @@ describe('call sheet views', () => {
     el.querySelector('select[data-role="Ton"]').value = 'u-2';
     el.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     expect(onSave).toHaveBeenCalledWith({
-      call_time: new Date('2026-11-08T17:00').toISOString(),
+      call_time: SHEET.call_time,
       meeting_point: 'Bahnhof St. Pölten',
       schedule: '17:00 Aufbau',
       logistics: 'Parken gratis',
@@ -84,5 +85,19 @@ describe('call sheet views', () => {
         { role: 'Ton', user_id: 'u-2' },
       ]),
     });
+  });
+
+  it('form round-trips an untouched call_time without drift', () => {
+    const el = document.createElement('div');
+    const onSave = vi.fn();
+    renderCallSheetForm(el, { sheet: SHEET, roles: [], members: [] }, { onSave });
+    el.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ call_time: SHEET.call_time }));
+  });
+
+  it('print CSS scopes printed output to the sheet area', () => {
+    const css = fs.readFileSync('src/input.css', 'utf8');
+    const printBlock = css.match(/@media print\s*{[\s\S]*}/)?.[0] ?? '';
+    expect(printBlock).toContain('data-print-area');
   });
 });

@@ -1304,12 +1304,12 @@ app.put('/api/projects/:id/callsheet', requireUser, async (c) => {
     if (s != null && s.length > 5000) throw new Error(`${name} ist zu lang (max. 5000 Zeichen).`);
     return s;
   };
-  let call_time = null;
-  let meeting_point = null;
-  let schedule = null;
-  let logistics = null;
-  let emergency_contacts = null;
-  let roles = [];
+  let call_time;
+  let meeting_point;
+  let schedule;
+  let logistics;
+  let emergency_contacts;
+  let roles;
   try {
     if (body.call_time != null && body.call_time !== '') {
       if (Number.isNaN(Date.parse(body.call_time))) return fail(c, 'Ungültige Call-Time.', 400);
@@ -1321,9 +1321,12 @@ app.put('/api/projects/:id/callsheet', requireUser, async (c) => {
     emergency_contacts = trim5k(body.emergency_contacts, 'Die Notfallkontakte');
     if (!Array.isArray(body.roles)) return fail(c, 'Rollen fehlen.', 400);
     roles = [];
+    const seen = new Set();
     for (const r of body.roles) {
       const role = String(r?.role ?? '').trim();
       if (!CALL_SHEET_ROLES.includes(role)) return fail(c, `Unbekannte Rolle: ${role || '–'}.`, 400);
+      if (seen.has(role)) return fail(c, `Doppelte Rolle: ${role}.`, 400);
+      seen.add(role);
       const user_id = r?.user_id ?? null;
       if (user_id != null) {
         const u = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(user_id).first();
@@ -1353,6 +1356,8 @@ app.post('/api/projects/:id/callsheet/publish', requireUser, async (c) => {
   if (!project) return fail(c, 'Nicht gefunden.', 404);
   if (project.head_user_id !== session.user_id && !session.is_admin) return fail(c, 'Nur Head oder Admin.', 403);
   const now = nowISO();
+  await c.env.DB.prepare('INSERT INTO call_sheets (project_id, created_at, updated_at) VALUES (?, ?, ?) ON CONFLICT(project_id) DO NOTHING')
+    .bind(project.id, now, now).run();
   const marked = await c.env.DB.prepare('UPDATE call_sheets SET published_at = ? WHERE project_id = ? AND published_at IS NULL')
     .bind(now, project.id).run();
   if (!marked.meta.changes) return fail(c, 'Bereits veröffentlicht.', 409);

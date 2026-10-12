@@ -49,6 +49,12 @@ function fakeDb(state) {
     },
     run: async (sql, args) => {
       if (sql.startsWith('INSERT INTO call_sheets')) {
+        const exists = state.sheets.some((s) => s.project_id === args[0]);
+        if (exists && sql.includes('DO NOTHING')) return { meta: { changes: 0 } };
+        if (sql.includes('DO NOTHING')) {
+          state.sheets.push({ project_id: args[0], call_time: null, meeting_point: null, schedule: null, logistics: null, emergency_contacts: null, published_at: null, created_at: args[1], updated_at: args[2] });
+          return { meta: { changes: 1 } };
+        }
         const row = { project_id: args[0], call_time: args[1], meeting_point: args[2], schedule: args[3], logistics: args[4], emergency_contacts: args[5], published_at: null, created_at: '2026-10-12T00:00:00.000Z', updated_at: '2026-10-12T00:00:00.000Z' };
         const i = state.sheets.findIndex((s) => s.project_id === row.project_id);
         if (i >= 0) state.sheets[i] = { ...state.sheets[i], ...row };
@@ -150,6 +156,15 @@ describe('call sheet GET/PUT', () => {
     expect(badTime.status).toBe(400);
   });
 
+  it('PUT rejects duplicate roles in German', async () => {
+    const res = await requestWith(makeState(), '/api/projects/p1/callsheet', 's-head', 'PUT', {
+      ...PUT_BODY,
+      roles: [{ role: 'Kamera', user_id: null }, { role: 'Kamera', user_id: 'u-1' }],
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Doppelt/);
+  });
+
   it('GET shows unbesetzt for a deleted role user', async () => {
     const state = makeState();
     await requestWith(state, '/api/projects/p1/callsheet', 's-head', 'PUT', PUT_BODY);
@@ -201,9 +216,8 @@ describe('call sheet publish', () => {
     }
   });
 
-  it('publish without members and without API key still publishes', async () => {
+  it('publish without API key still publishes and counts failures', async () => {
     const state = makeState();
-    state.memberships = [];
     await requestWith(state, '/api/projects/p1/callsheet', 's-head', 'PUT', PUT_BODY);
     const res = await app.request('/api/projects/p1/callsheet/publish', {
       method: 'POST',
@@ -212,12 +226,27 @@ describe('call sheet publish', () => {
     expect(res.status).toBe(200);
     const { data } = await res.json();
     expect(data.published_at).toBeTruthy();
-    expect(data.email.sent).toBe(0);
+    expect(data.email).toMatchObject({ sent: 0, failed: 2 });
   });
 
   it('publish by plain member is 403', async () => {
     const res = await requestWith(makeState(), '/api/projects/p1/callsheet/publish', 's-m', 'POST');
     expect(res.status).toBe(403);
+  });
+
+  it('publish without a saved sheet creates and publishes', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const state = makeState();
+      const res = await requestWith(state, '/api/projects/p1/callsheet/publish', 's-head', 'POST');
+      expect(res.status).toBe(200);
+      const { data } = await res.json();
+      expect(data.published_at).toBeTruthy();
+      expect(state.sheets).toHaveLength(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('deleting the project removes its sheet and roles', async () => {

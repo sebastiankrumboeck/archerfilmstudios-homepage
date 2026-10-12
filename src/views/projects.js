@@ -256,7 +256,7 @@ export function renderCallSheetForm(el, { sheet = {}, roles = [], members = [] }
     <form data-callsheet-form class="mt-8 grid max-w-2xl gap-3 border border-paper/15 p-6">
       <h3 class="font-display text-xl uppercase">Call Sheet bearbeiten</h3>
       <label class="text-xs uppercase text-paper/60">Call-Time
-        <input name="call_time" type="datetime-local" value="${esc(String(sheet?.call_time ?? '').slice(0, 16))}" class="mt-1 w-full border border-paper/20 bg-transparent p-3" />
+        <input name="call_time" type="datetime-local" value="${esc(toLocalInput(sheet?.call_time))}" class="mt-1 w-full border border-paper/20 bg-transparent p-3" />
       </label>
       <label class="text-xs uppercase text-paper/60">Treffpunkt
         <input name="meeting_point" maxlength="5000" value="${esc(sheet?.meeting_point ?? '').replace(/`/g, '&#96;')}" class="mt-1 w-full border border-paper/20 bg-transparent p-3 normal-case" />

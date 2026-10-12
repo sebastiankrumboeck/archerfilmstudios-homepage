@@ -9,6 +9,9 @@
   #footer-slot {
     display: none !important;
   }
+  #app-view > *:not(:has([data-print-area])) {
+    display: none !important;
+  }
 }
 
 @theme {
