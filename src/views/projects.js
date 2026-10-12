@@ -402,6 +402,59 @@ export function openLeaveModal(project, onLeave) {
   });
 }
 
+export function renderOpenRoles(el, { roles = [], applications = [] } = {}, { isHeadOrAdmin = false, onApply = null, onDecide = null } = {}) {
+  const pendingByRole = new Map();
+  for (const a of applications ?? []) {
+    if (a.status !== 'pending') continue;
+    if (!pendingByRole.has(a.role)) pendingByRole.set(a.role, []);
+    pendingByRole.get(a.role).push(a);
+  }
+  const rows = (roles ?? []).map((r) => {
+    const open = !r.user_id;
+    const apps = pendingByRole.get(r.role) ?? [];
+    const appRows = isHeadOrAdmin ? apps.map((a) => `
+      <div class="mt-1 flex items-center justify-between gap-2 border border-paper/10 px-3 py-2 text-sm">
+        <span>${a.user_name ? esc(a.user_name) : '<span class="text-paper/40">ehemaliges Mitglied</span>'}</span>
+        <span class="flex gap-2">
+          <button type="button" data-approve-app="${esc(a.id)}" class="border border-amber px-3 py-1 text-xs uppercase">Bestätigen</button>
+          <button type="button" data-reject-app="${esc(a.id)}" class="border border-paper/20 px-3 py-1 text-xs uppercase">Ablehnen</button>
+        </span>
+      </div>`).join('') : '';
+    return `<div class="border-b border-paper/10 py-2">
+      <div class="flex items-center justify-between gap-4 text-sm">
+        <span class="uppercase text-paper/60">${esc(r.role)}</span>
+        ${open
+          ? `<button type="button" data-apply="${esc(r.role)}" class="border border-amber px-3 py-1 text-xs uppercase tracking-widest">Bewerben</button>`
+          : `<span>${r.user_name ? esc(r.user_name) : '<span class="text-paper/40">unbesetzt</span>'}</span>`}
+      </div>${appRows}</div>`;
+  }).join('');
+  el.innerHTML = `
+    <section class="mt-8 border border-paper/15 p-6">
+      <h3 class="font-display text-2xl uppercase">Offene Rollen</h3>
+      <div class="mt-2">${rows}</div>
+    </section>`;
+  for (const btn of el.querySelectorAll('[data-apply]')) {
+    btn.addEventListener('click', () => {
+      const role = btn.getAttribute('data-apply');
+      openModal({
+        title: 'Bewerben',
+        bodyHTML: `<p>Möchtest du dich für die Rolle „${esc(role)}“ bewerben? Der Head entscheidet über die Zusage.</p>`,
+        confirmLabel: 'Bewerben',
+        onConfirm: ({ close }) => {
+          close();
+          onApply?.(role);
+        },
+      });
+    });
+  }
+  for (const btn of el.querySelectorAll('[data-approve-app]')) {
+    btn.addEventListener('click', () => onDecide?.(btn.getAttribute('data-approve-app'), true));
+  }
+  for (const btn of el.querySelectorAll('[data-reject-app]')) {
+    btn.addEventListener('click', () => onDecide?.(btn.getAttribute('data-reject-app'), false));
+  }
+}
+
 export function renderProjectGallery(el, photos = [], { canUpload = false, canDeleteFor = null, onUpload = null, onDelete = null } = {}) {
   el.innerHTML = '';
   const section = document.createElement('section');

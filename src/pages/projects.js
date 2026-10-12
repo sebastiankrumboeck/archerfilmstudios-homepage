@@ -1,6 +1,6 @@
 import { mountLayout } from '../layout.js';
 import { api } from '../api/client.js';
-import { renderAbsenceDecided, renderAbsenceDecision, renderCallSheet, renderCallSheetForm, renderProjectDetail, renderProjectGallery, renderProjects, renderProjectForm, renderReminderToggle } from '../views/projects.js';
+import { renderAbsenceDecided, renderAbsenceDecision, renderCallSheet, renderCallSheetForm, renderOpenRoles, renderProjectDetail, renderProjectGallery, renderProjects, renderProjectForm, renderReminderToggle } from '../views/projects.js';
 
 await mountLayout('projects');
 const view = document.querySelector('#app-view');
@@ -148,6 +148,8 @@ async function loadDetail(id) {
   }
   const sheetBox = document.createElement('div');
   view.append(sheetBox);
+  const rolesBox = document.createElement('div');
+  view.append(rolesBox);
   async function refreshSheet(editing = false) {
     try {
       const res = await api(`/api/projects/${encodeURIComponent(id)}/callsheet`);
@@ -181,6 +183,25 @@ async function loadDetail(id) {
           },
         });
       }
+      renderOpenRoles(rolesBox, { roles, applications: res.applications ?? [] }, {
+        isHeadOrAdmin: canSheet,
+        onApply: async (role) => {
+          try {
+            await api(`/api/projects/${encodeURIComponent(id)}/roles/apply`, { method: 'POST', body: JSON.stringify({ role }) });
+            await refreshSheet(false);
+          } catch (err) {
+            alert(err.message);
+          }
+        },
+        onDecide: async (applicationId, approved) => {
+          try {
+            await api(`/api/role-applications/${encodeURIComponent(applicationId)}/decision`, { method: 'POST', body: JSON.stringify({ approved }) });
+            await refreshSheet(false);
+          } catch (err) {
+            alert(err.message);
+          }
+        },
+      });
     } catch (err) {
       const p = document.createElement('p');
       p.className = 'mt-8 text-sm text-red-400';
