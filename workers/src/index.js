@@ -932,6 +932,66 @@ app.get('/api/minutes/:id/file', requireUser, async (c) => {
   return new Response(obj.body, { headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'private, max-age=3600' } });
 });
 
+// --- Ideenbox ---
+const MAX_SCRIPT_BYTES = 40 * 1024 * 1024;
+
+app.post('/api/ideas', requireUser, async (c) => {
+  const session = c.get('session');
+  const body = await c.req.json().catch(() => ({}));
+  const title = String(body.title ?? '').trim();
+  const author_name = String(body.author_name ?? '').trim();
+  if (!title || title.length > 150) return fail(c, 'Titel erforderlich (max. 150 Zeichen).', 400);
+  if (!author_name || author_name.length > 100) return fail(c, 'Autor erforderlich (max. 100 Zeichen).', 400);
+  const id = uid('idea');
+  await c.env.DB.prepare('INSERT INTO ideas (id, title, author_name, script_r2_key, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(id, title, author_name, null, session.user_id, nowISO()).run();
+  const idea = await c.env.DB.prepare('SELECT id, title, author_name, created_by, created_at FROM ideas WHERE id = ?').bind(id).first();
+  return ok(c, { idea }, 201);
+});
+
+app.post('/api/ideas/:id/script', requireUser, async (c) => {
+  const session = c.get('session');
+  const idea = await c.env.DB.prepare('SELECT * FROM ideas WHERE id = ?').bind(c.req.param('id')).first();
+  if (!idea) return fail(c, 'Nicht gefunden.', 404);
+  if (idea.created_by !== session.user_id && !session.is_admin) return fail(c, 'Nur eigene Ideen.', 403);
+  const contentType = c.req.header('content-type') ?? '';
+  if (!contentType.includes('application/pdf')) return fail(c, 'Nur PDF.', 415);
+  const buf = await c.req.arrayBuffer();
+  if (buf.byteLength > MAX_SCRIPT_BYTES) return fail(c, 'Datei zu groß (max. 40 MB).', 413);
+  const key = `scripts/${idea.id}.pdf`;
+  await c.env.AVATARS.put(key, buf, { httpMetadata: { contentType: 'application/pdf' } });
+  await c.env.DB.prepare('UPDATE ideas SET script_r2_key = ? WHERE id = ?').bind(key, idea.id).run();
+  const link = `https://archerfilmstudios.com/scripts/${idea.id}.pdf`;
+  const email = await sendMail(c.env, {
+    to: CONTACT_TO,
+    subject: `Neue Idee: ${idea.title} – Archer FilmStudios`,
+    text: [
+      `Titel: ${idea.title}`,
+      `Autor: ${idea.author_name}`,
+      '',
+      `Skript: ${link}`,
+    ].join('\n'),
+  });
+  return ok(c, { idea: { ...idea, script_r2_key: key }, email: { sent: email.ok, ...(email.ok ? {} : { error: email.error }) } });
+});
+
+app.get('/api/ideas/mine', requireUser, async (c) => {
+  const session = c.get('session');
+  const { results } = await c.env.DB.prepare('SELECT id, title, author_name, created_by, created_at FROM ideas WHERE created_by = ? ORDER BY created_at DESC').bind(session.user_id).all();
+  const ideas = (results ?? []).map((i) => ({ ...i }));
+  for (const idea of ideas) {
+    const full = await c.env.DB.prepare('SELECT script_r2_key FROM ideas WHERE id = ?').bind(idea.id).first();
+    idea.has_script = !!full?.script_r2_key;
+  }
+  return ok(c, { ideas });
+});
+
+app.get('/scripts/:key', requireUser, async (c) => {
+  const obj = await c.env.AVATARS.get(`scripts/${c.req.param('key')}`);
+  if (!obj) return fail(c, 'Not found.', 404);
+  return new Response(obj.body, { headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'private, max-age=3600' } });
+});
+
 // --- Board decisions (members read, admins write) ---
 function validDecisionDate(s) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s ?? '')) return false;
