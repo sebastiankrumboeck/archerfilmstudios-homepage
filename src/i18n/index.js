@@ -133,6 +133,14 @@ export const DICT = {
     'impressum.roleKassierStv': 'Deputy Treasurer: ',
     'impressum.roleSchrift': 'Secretary: ',
     'impressum.roleSchriftStv': 'Deputy Secretary: ',
+    'meta.home.title': 'Archer FilmStudios | Film & Photography Club St. Pölten',
+    'meta.home.desc': 'Archer FilmStudios is a film and photography club based in St. Pölten, Austria. Discover our film productions, photography, events and creative community.',
+    'meta.films.title': 'Produced Films — Archer FilmStudios',
+    'meta.films.desc': 'Produced films by Archer FilmStudios — short films made in St. Pölten, Austria.',
+    'meta.contact.title': 'Contact — Archer FilmStudios',
+    'meta.contact.desc': 'Contact Archer FilmStudios.',
+    'meta.impressum.title': 'Imprint — Archer FilmStudios',
+    'meta.impressum.desc': 'Imprint of Archer FilmStudios.',
   },
   de: {
     'nav.home': 'Start',
@@ -266,6 +274,14 @@ export const DICT = {
     'impressum.roleKassierStv': 'Kassier Stellvertreter: ',
     'impressum.roleSchrift': 'Schriftführer: ',
     'impressum.roleSchriftStv': 'Schriftführer Stellvertreter: ',
+    'meta.home.title': 'Archer FilmStudios | Film- & Fotoclub St. Pölten',
+    'meta.home.desc': 'Archer FilmStudios ist ein Film- und Fotoclub aus St. Pölten, Österreich. Entdecke unsere Filmproduktionen, Fotografie, Events und kreative Community.',
+    'meta.films.title': 'Produzierte Filme — Archer FilmStudios',
+    'meta.films.desc': 'Produzierte Filme von Archer FilmStudios — Kurzfilme aus St. Pölten, Österreich.',
+    'meta.contact.title': 'Kontakt — Archer FilmStudios',
+    'meta.contact.desc': 'Kontaktiere Archer FilmStudios.',
+    'meta.impressum.title': 'Impressum — Archer FilmStudios',
+    'meta.impressum.desc': 'Impressum von Archer FilmStudios.',
   },
 };
 
@@ -309,6 +325,14 @@ export function applyI18n(root = document) {
   for (const el of root.querySelectorAll('[data-i18n-alt]')) {
     const v = t(el.getAttribute('data-i18n-alt'));
     if (v) el.alt = v;
+  }
+  const page = root.documentElement?.dataset?.page;
+  if (page) {
+    const title = t(`meta.${page}.title`);
+    if (title && title !== `meta.${page}.title`) document.title = title;
+    const desc = root.querySelector('meta[name="description"]');
+    const descText = t(`meta.${page}.desc`);
+    if (desc && descText && descText !== `meta.${page}.desc`) desc.content = descText;
   }
 }
 

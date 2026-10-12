@@ -91,8 +91,7 @@ describe('i18n dynamic views', () => {
     expect(el.querySelector('[data-status]').textContent).toBe(DICT.de['contact.invalid']);
   });
 
-  it('contact re-render preserves typed input', () => {
-    setLang('en');
+  it('contact re-render preserves typed input', () => {    setLang('en');
     const el = document.createElement('div');
     renderContact(el);
     el.querySelector('input[name="name"]').value = 'Anna';
@@ -102,5 +101,27 @@ describe('i18n dynamic views', () => {
     expect(el.querySelector('input[name="name"]').value).toBe('Anna');
     expect(el.querySelector('textarea[name="message"]').value).toBe('Hallo');
     expect(el.querySelector('button').textContent).toContain(DICT.de['contact.send']);
+  });
+});
+
+describe('i18n document metadata', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    document.documentElement.lang = 'en';
+    document.title = '';
+    document.head.innerHTML = '<meta name="description" content="">';
+  });
+
+  it('applyI18n sets title, meta description, and html lang per page', () => {
+    document.documentElement.dataset.page = 'films';
+    setLang('de');
+    applyI18n(document);
+    expect(document.title).toBe(DICT.de['meta.films.title']);
+    expect(document.querySelector('meta[name="description"]').content).toBe(DICT.de['meta.films.desc']);
+    expect(document.documentElement.lang).toBe('de');
+    setLang('en');
+    applyI18n(document);
+    expect(document.title).toBe(DICT.en['meta.films.title']);
+    delete document.documentElement.dataset.page;
   });
 });
