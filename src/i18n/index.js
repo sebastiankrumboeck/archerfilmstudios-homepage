@@ -305,26 +305,31 @@ export function t(key) {
   return DICT[lang]?.[key] ?? DICT.en[key] ?? key;
 }
 
+function known(key) {
+  return key in DICT.en || key in (DICT[getLang()] ?? {});
+}
+
 export function applyI18n(root = document) {
+  if (root.documentElement) root.documentElement.lang = getLang();
   for (const el of root.querySelectorAll('[data-i18n]')) {
-    const v = t(el.getAttribute('data-i18n'));
-    if (v) el.textContent = v;
+    const key = el.getAttribute('data-i18n');
+    if (known(key)) el.textContent = t(key);
   }
   for (const el of root.querySelectorAll('[data-i18n-html]')) {
-    const v = t(el.getAttribute('data-i18n-html'));
-    if (v) el.innerHTML = v;
+    const key = el.getAttribute('data-i18n-html');
+    if (known(key)) el.innerHTML = t(key);
   }
   for (const el of root.querySelectorAll('[data-i18n-ph]')) {
-    const v = t(el.getAttribute('data-i18n-ph'));
-    if (v) el.placeholder = v;
+    const key = el.getAttribute('data-i18n-ph');
+    if (known(key)) el.placeholder = t(key);
   }
   for (const el of root.querySelectorAll('[data-i18n-aria]')) {
-    const v = t(el.getAttribute('data-i18n-aria'));
-    if (v) el.setAttribute('aria-label', v);
+    const key = el.getAttribute('data-i18n-aria');
+    if (known(key)) el.setAttribute('aria-label', t(key));
   }
   for (const el of root.querySelectorAll('[data-i18n-alt]')) {
-    const v = t(el.getAttribute('data-i18n-alt'));
-    if (v) el.alt = v;
+    const key = el.getAttribute('data-i18n-alt');
+    if (known(key)) el.alt = t(key);
   }
   const page = root.documentElement?.dataset?.page;
   if (page) {

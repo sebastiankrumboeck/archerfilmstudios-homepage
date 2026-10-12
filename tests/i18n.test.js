@@ -33,8 +33,7 @@ describe('i18n core', () => {
     expect(t('does.not.exist')).toBe('does.not.exist');
   });
 
-  it('applyI18n replaces text, html, placeholder, and aria markers', () => {
-    document.body.innerHTML = `
+  it('applyI18n replaces text, html, placeholder, and aria markers', () => {    document.body.innerHTML = `
       <p data-i18n="nav.home"></p>
       <div data-i18n-html="nav.home"></div>
       <input data-i18n-ph="nav.home" />
@@ -123,5 +122,21 @@ describe('i18n document metadata', () => {
     applyI18n(document);
     expect(document.title).toBe(DICT.en['meta.films.title']);
     delete document.documentElement.dataset.page;
+  });
+
+  it('unknown marker keys keep existing English text', () => {
+    document.body.innerHTML = `<p data-i18n="bogus.key">Hello</p>`;
+    setLang('de');
+    applyI18n(document);
+    expect(document.querySelector('p').textContent).toBe('Hello');
+  });
+
+  it('applyI18n syncs html lang from storage without setLang', () => {
+    localStorage.setItem('archer-lang', 'de');
+    document.documentElement.lang = 'en';
+    document.body.innerHTML = `<p data-i18n="nav.home"></p>`;
+    applyI18n(document);
+    expect(document.documentElement.lang).toBe('de');
+    expect(document.querySelector('p').textContent).toBe(DICT.de['nav.home']);
   });
 });
