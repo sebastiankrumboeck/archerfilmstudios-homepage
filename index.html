@@ -34,7 +34,7 @@
     <title>Archer FilmStudios | Film & Photography Club St. Pölten</title>
   </head>
   <body class="bg-ink text-paper antialiased">
-    <a class="skip-link" href="#main-content">Skip to content</a>
+    <a class="skip-link" href="#main-content" data-i18n="nav.skip">Skip to content</a>
 
     <div id="header-slot"></div>
 
@@ -49,6 +49,7 @@
             data-fallback-image
             class="h-full w-full object-cover"
             src="https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=2200&q=85"
+            data-i18n-alt="home.heroAlt"
             alt="A camera and lens catching warm light in a dark studio"
             width="2200"
             height="1400"
@@ -60,24 +61,25 @@
         <div class="absolute inset-0 z-10 bg-linear-to-t from-ink via-transparent to-ink/25"></div>
 
         <div class="relative z-20 mx-auto w-full max-w-7xl px-5 pb-16 pt-28 sm:px-8 sm:pb-24 lg:px-10 lg:pb-28">
-          <p class="mb-6 text-xs font-semibold uppercase tracking-[0.22em] text-amber">
+          <p class="mb-6 text-xs font-semibold uppercase tracking-[0.22em] text-amber" data-i18n="home.kicker">
             Cinematic Film &amp; Photography / Travel / People / Worldwide
           </p>
           <h1
             id="hero-title"
+            data-i18n-html="home.title"
             class="max-w-4xl font-display text-[clamp(4.5rem,14vw,10rem)] font-semibold uppercase leading-[0.78] tracking-[-0.045em]"
           >
             Make<br />stillness<br /><span class="text-amber">move.</span>
           </h1>
           <div class="mt-8 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-            <p class="max-w-sm text-base leading-relaxed text-paper/75 sm:text-lg">
+            <p class="max-w-sm text-base leading-relaxed text-paper/75 sm:text-lg" data-i18n="home.sub">
               Archer FilmStudios is a cinematic film &amp; photography club based in St. Pölten, Lower Austria. Follow our work at @archerfilmstudios.
             </p>
             <a
               class="group inline-flex w-fit items-center gap-5 border border-amber px-5 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-paper transition-colors hover:bg-amber hover:text-ink"
               href="#work"
             >
-              Explore selected work
+              <span data-i18n="home.cta">Explore selected work</span>
               <span class="text-lg transition-transform group-hover:translate-x-1" aria-hidden="true">↘</span>
             </a>
           </div>
@@ -87,12 +89,12 @@
       <section id="work" aria-labelledby="work-title" class="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32 lg:px-10">
         <div class="mb-14 flex flex-col gap-5 border-b border-paper/15 pb-8 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p class="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-amber">Selected work / 2026</p>
-            <h2 id="work-title" class="font-display text-5xl font-semibold uppercase leading-none tracking-[-0.035em] sm:text-7xl">
+            <p class="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-amber" data-i18n="home.workKicker">Selected work / 2026</p>
+            <h2 id="work-title" data-i18n="home.workTitle" class="font-display text-5xl font-semibold uppercase leading-none tracking-[-0.035em] sm:text-7xl">
               Frames in exchange
             </h2>
           </div>
-          <p class="max-w-xs text-sm leading-relaxed text-muted sm:text-right">
+          <p class="max-w-xs text-sm leading-relaxed text-muted sm:text-right" data-i18n="home.workSub">
             A few studies in light, place, movement, and the people who make us look twice.
           </p>
         </div>
@@ -100,62 +102,62 @@
         <div class="grid grid-cols-1 gap-x-5 gap-y-12 md:grid-cols-12">
           <article data-work-card class="group md:col-span-7">
             <div data-image-frame class="image-frame aspect-[1600/2403] overflow-hidden">
-              <img data-fallback-image class="h-full w-full object-cover" src="/work/work-1.jpg" alt="A woman in swimwear standing in tall grass, silhouetted against a bright sky" width="1600" height="2403" loading="lazy" decoding="async" />
+              <img data-fallback-image class="h-full w-full object-cover" src="/work/work-1.jpg" data-i18n-alt="home.alt1" alt="A woman in swimwear standing in tall grass, silhouetted against a bright sky" width="1600" height="2403" loading="lazy" decoding="async" />
             </div>
             <div class="mt-4 flex items-start justify-between gap-4 border-t border-paper/15 pt-3 text-xs uppercase tracking-[0.14em]">
-              <div><h3 class="text-amber">01 / Portrait</h3><p class="mt-2 text-paper/70">Standing tall in the grass</p></div>
+              <div><h3 class="text-amber" data-i18n="home.tag1">01 / Portrait</h3><p class="mt-2 text-paper/70" data-i18n="home.cap1">Standing tall in the grass</p></div>
             </div>
           </article>
 
           <article data-work-card class="group md:col-span-5 md:pt-20">
             <div data-image-frame class="image-frame aspect-[1600/1034] overflow-hidden">
-              <img data-fallback-image class="h-full w-full object-cover" src="/work/work-2.jpg" alt="A small motorboat passing between two rocky sea cliffs" width="1600" height="1034" loading="lazy" decoding="async" />
+              <img data-fallback-image class="h-full w-full object-cover" src="/work/work-2.jpg" data-i18n-alt="home.alt2" alt="A small motorboat passing between two rocky sea cliffs" width="1600" height="1034" loading="lazy" decoding="async" />
             </div>
             <div class="mt-4 flex items-start justify-between gap-4 border-t border-paper/15 pt-3 text-xs uppercase tracking-[0.14em]">
-              <div><h3 class="text-amber">02 / Place</h3><p class="mt-2 text-paper/70">A boat between the cliffs</p></div>
+              <div><h3 class="text-amber" data-i18n="home.tag2">02 / Place</h3><p class="mt-2 text-paper/70" data-i18n="home.cap2">A boat between the cliffs</p></div>
             </div>
           </article>
 
           <article data-work-card class="group md:col-span-4">
             <div data-image-frame class="image-frame aspect-[1600/1045] overflow-hidden">
-              <img data-fallback-image class="h-full w-full object-cover" src="/work/work-3.jpg" alt="A small green island in calm sea water at dusk, seen over treetops" width="1600" height="1045" loading="lazy" decoding="async" />
+              <img data-fallback-image class="h-full w-full object-cover" src="/work/work-3.jpg" data-i18n-alt="home.alt3" alt="A small green island in calm sea water at dusk, seen over treetops" width="1600" height="1045" loading="lazy" decoding="async" />
             </div>
-            <div class="mt-4 border-t border-paper/15 pt-3 text-xs uppercase tracking-[0.14em]"><h3 class="text-amber">03 / Place</h3><p class="mt-2 text-paper/70">Island in the evening light</p><p class="mt-1 text-xs uppercase tracking-[0.14em] text-muted">Vieste, Italy</p></div>
+            <div class="mt-4 border-t border-paper/15 pt-3 text-xs uppercase tracking-[0.14em]"><h3 class="text-amber" data-i18n="home.tag3">03 / Place</h3><p class="mt-2 text-paper/70" data-i18n="home.cap3">Island in the evening light</p><p class="mt-1 text-xs uppercase tracking-[0.14em] text-muted" data-i18n="home.locVieste">Vieste, Italy</p></div>
           </article>
 
           <article data-work-card class="group md:col-span-4">
             <div data-image-frame class="image-frame aspect-[1583/2379] overflow-hidden">
-              <img data-fallback-image class="h-full w-full object-cover" src="/work/work-4.jpg" alt="A couple silhouetted in a warm-lit stone alley at night" width="1578" height="2377" loading="lazy" decoding="async" />
+              <img data-fallback-image class="h-full w-full object-cover" src="/work/work-4.jpg" data-i18n-alt="home.alt4" alt="A couple silhouetted in a warm-lit stone alley at night" width="1578" height="2377" loading="lazy" decoding="async" />
             </div>
-            <div class="mt-4 border-t border-paper/15 pt-3 text-xs uppercase tracking-[0.14em]"><h3 class="text-amber">04 / Portrait</h3><p class="mt-2 text-paper/70">Two shadows in the old alley</p><p class="mt-1 text-xs uppercase tracking-[0.14em] text-muted">Vieste, Italy</p></div>
+            <div class="mt-4 border-t border-paper/15 pt-3 text-xs uppercase tracking-[0.14em]"><h3 class="text-amber" data-i18n="home.tag4">04 / Portrait</h3><p class="mt-2 text-paper/70" data-i18n="home.cap4">Two shadows in the old alley</p><p class="mt-1 text-xs uppercase tracking-[0.14em] text-muted" data-i18n="home.locVieste">Vieste, Italy</p></div>
           </article>
 
           <article data-work-card class="group md:col-span-4">
             <div data-image-frame class="image-frame aspect-[1553/1034] overflow-hidden">
-              <img data-fallback-image class="h-full w-full object-cover" src="/work/work-5.jpg" alt="A couple seen from behind standing in tall golden grass" width="1553" height="1034" loading="lazy" decoding="async" />
+              <img data-fallback-image class="h-full w-full object-cover" src="/work/work-5.jpg" data-i18n-alt="home.alt5" alt="A couple seen from behind standing in tall golden grass" width="1553" height="1034" loading="lazy" decoding="async" />
             </div>
-            <div class="mt-4 border-t border-paper/15 pt-3 text-xs uppercase tracking-[0.14em]"><h3 class="text-amber">05 / Portrait</h3><p class="mt-2 text-paper/70">Standing in gold</p></div>
+            <div class="mt-4 border-t border-paper/15 pt-3 text-xs uppercase tracking-[0.14em]"><h3 class="text-amber" data-i18n="home.tag5">05 / Portrait</h3><p class="mt-2 text-paper/70" data-i18n="home.cap5">Standing in gold</p></div>
           </article>
 
           <article data-work-card class="group md:col-span-4">
             <div data-image-frame class="image-frame aspect-[1600/1026] overflow-hidden">
-              <img data-fallback-image class="h-full w-full object-cover" src="/work/work-6.jpg" alt="A person standing on a beach at sunset with mountains across the bay" width="1600" height="1026" loading="lazy" decoding="async" />
+              <img data-fallback-image class="h-full w-full object-cover" src="/work/work-6.jpg" data-i18n-alt="home.alt6" alt="A person standing on a beach at sunset with mountains across the bay" width="1600" height="1026" loading="lazy" decoding="async" />
             </div>
-            <div class="mt-4 border-t border-paper/15 pt-3 text-xs uppercase tracking-[0.14em]"><h3 class="text-amber">06 / Place</h3><p class="mt-2 text-paper/70">Sunset on the beach</p><p class="mt-1 text-xs uppercase tracking-[0.14em] text-muted">Crete, Greece</p></div>
+            <div class="mt-4 border-t border-paper/15 pt-3 text-xs uppercase tracking-[0.14em]"><h3 class="text-amber" data-i18n="home.tag6">06 / Place</h3><p class="mt-2 text-paper/70" data-i18n="home.cap6">Sunset on the beach</p><p class="mt-1 text-xs uppercase tracking-[0.14em] text-muted" data-i18n="home.locCrete">Crete, Greece</p></div>
           </article>
 
           <article data-work-card class="group md:col-span-4">
             <div data-image-frame class="image-frame aspect-[1600/2379] overflow-hidden">
-              <img data-fallback-image class="h-full w-full object-cover" src="/work/work-7.jpg" alt="A person photographing the sunset on a beach at golden hour" width="1600" height="2379" loading="lazy" decoding="async" />
+              <img data-fallback-image class="h-full w-full object-cover" src="/work/work-7.jpg" data-i18n-alt="home.alt7" alt="A person photographing the sunset on a beach at golden hour" width="1600" height="2379" loading="lazy" decoding="async" />
             </div>
-            <div class="mt-4 border-t border-paper/15 pt-3 text-xs uppercase tracking-[0.14em]"><h3 class="text-amber">07 / Field note</h3><p class="mt-2 text-paper/70">Chasing the last light</p><p class="mt-1 text-xs uppercase tracking-[0.14em] text-muted">Crete, Greece</p></div>
+            <div class="mt-4 border-t border-paper/15 pt-3 text-xs uppercase tracking-[0.14em]"><h3 class="text-amber" data-i18n="home.tag7">07 / Field note</h3><p class="mt-2 text-paper/70" data-i18n="home.cap7">Chasing the last light</p><p class="mt-1 text-xs uppercase tracking-[0.14em] text-muted" data-i18n="home.locCrete">Crete, Greece</p></div>
           </article>
 
           <article data-work-card class="group md:col-span-4">
             <div data-image-frame class="image-frame aspect-[1577/2092] overflow-hidden">
-              <img data-fallback-image class="h-full w-full object-cover" src="/work/work-8.jpg" alt="A girl swimming underwater, silhouetted against sun rays from above" width="1577" height="2092" loading="lazy" decoding="async" />
+              <img data-fallback-image class="h-full w-full object-cover" src="/work/work-8.jpg" data-i18n-alt="home.alt8" alt="A girl swimming underwater, silhouetted against sun rays from above" width="1577" height="2092" loading="lazy" decoding="async" />
             </div>
-            <div class="mt-4 border-t border-paper/15 pt-3 text-xs uppercase tracking-[0.14em]"><h3 class="text-amber">08 / Still</h3><p class="mt-2 text-paper/70">Backlit underwater study</p><p class="mt-1 text-xs uppercase tracking-[0.14em] text-muted">Crete, Greece</p></div>
+            <div class="mt-4 border-t border-paper/15 pt-3 text-xs uppercase tracking-[0.14em]"><h3 class="text-amber" data-i18n="home.tag8">08 / Still</h3><p class="mt-2 text-paper/70" data-i18n="home.cap8">Backlit underwater study</p><p class="mt-1 text-xs uppercase tracking-[0.14em] text-muted" data-i18n="home.locCrete">Crete, Greece</p></div>
           </article>
         </div>
       </section>
@@ -163,105 +165,105 @@
       <section id="about" aria-labelledby="about-title" class="border-y border-paper/10 bg-ink-soft">
         <div class="mx-auto grid max-w-7xl gap-14 px-5 py-24 sm:px-8 sm:py-32 lg:grid-cols-[1.1fr_0.9fr] lg:gap-24 lg:px-10">
           <div>
-            <p class="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-amber">About the club</p>
-            <h2 id="about-title" class="max-w-2xl font-display text-5xl font-semibold uppercase leading-[0.88] tracking-[-0.035em] sm:text-7xl">
+            <p class="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-amber" data-i18n="home.aboutKicker">About the club</p>
+            <h2 id="about-title" data-i18n="home.aboutTitle" class="max-w-2xl font-display text-5xl font-semibold uppercase leading-[0.88] tracking-[-0.035em] sm:text-7xl">
               Good work starts with better company.
             </h2>
             <div class="mt-8 max-w-xl space-y-5 text-base leading-relaxed text-paper/70">
-              <p>Archer FilmStudios is a small club for people who make films and photos — professionally, for the love of it, or because they cannot ignore the light.</p>
-              <p>We meet monthly to compare work, trade methods, and make something outside our usual circles. Bring a question, a half-finished sequence, or just your curiosity.</p>
+              <p data-i18n="home.aboutP1">Archer FilmStudios is a small club for people who make films and photos — professionally, for the love of it, or because they cannot ignore the light.</p>
+              <p data-i18n="home.aboutP2">We meet monthly to compare work, trade methods, and make something outside our usual circles. Bring a question, a half-finished sequence, or just your curiosity.</p>
             </div>
           </div>
 
           <div class="self-end">
             <dl class="grid grid-cols-3 border-y border-paper/15">
-              <div class="border-r border-paper/15 py-6 pr-4"><dt class="text-xs uppercase tracking-[0.14em] text-muted">Members</dt><dd class="mt-3 font-display text-4xl text-amber">40<span class="text-2xl">+</span></dd></div>
-              <div class="border-r border-paper/15 px-4 py-6"><dt class="text-xs uppercase tracking-[0.14em] text-muted">Meetups</dt><dd class="mt-3 font-display text-4xl text-amber">12<span class="text-2xl">/yr</span></dd></div>
-              <div class="py-6 pl-4"><dt class="text-xs uppercase tracking-[0.14em] text-muted">Active</dt><dd class="mt-3 font-display text-4xl text-amber">04<span class="text-2xl">yrs</span></dd></div>
+              <div class="border-r border-paper/15 py-6 pr-4"><dt class="text-xs uppercase tracking-[0.14em] text-muted" data-i18n="home.statMembers">Members</dt><dd class="mt-3 font-display text-4xl text-amber">40<span class="text-2xl">+</span></dd></div>
+              <div class="border-r border-paper/15 px-4 py-6"><dt class="text-xs uppercase tracking-[0.14em] text-muted" data-i18n="home.statMeetups">Meetups</dt><dd class="mt-3 font-display text-4xl text-amber">12<span class="text-2xl" data-i18n="home.statPerYear">/yr</span></dd></div>
+              <div class="py-6 pl-4"><dt class="text-xs uppercase tracking-[0.14em] text-muted" data-i18n="home.statActive">Active</dt><dd class="mt-3 font-display text-4xl text-amber">04<span class="text-2xl" data-i18n="home.statYears">yrs</span></dd></div>
             </dl>
-            <p class="mt-6 text-sm leading-relaxed text-paper/60">Monthly meetups alternate between St. Pölten and online. New voices are always welcome.</p>
-            <a class="mt-8 inline-flex items-center gap-4 text-sm font-semibold uppercase tracking-[0.14em] text-amber transition-colors hover:text-paper" href="#contact">Come say hello <span aria-hidden="true">↗</span></a>
+            <p class="mt-6 text-sm leading-relaxed text-paper/60" data-i18n="home.aboutNote">Monthly meetups alternate between St. Pölten and online. New voices are always welcome.</p>
+            <a class="mt-8 inline-flex items-center gap-4 text-sm font-semibold uppercase tracking-[0.14em] text-amber transition-colors hover:text-paper" href="#contact"><span data-i18n="home.aboutLink">Come say hello</span> <span aria-hidden="true">↗</span></a>
           </div>
         </div>
       </section>
 
       <section id="what-we-do" aria-labelledby="what-title" class="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32 lg:px-10">
-        <p class="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-amber">What we do</p>
-        <h2 id="what-title" class="max-w-3xl font-display text-5xl font-semibold uppercase leading-[0.88] tracking-[-0.035em] sm:text-7xl">
+        <p class="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-amber" data-i18n="home.whatKicker">What we do</p>
+        <h2 id="what-title" data-i18n="home.whatTitle" class="max-w-3xl font-display text-5xl font-semibold uppercase leading-[0.88] tracking-[-0.035em] sm:text-7xl">
           Films, photos &amp; conversations.
         </h2>
         <div class="mt-12 grid gap-5 md:grid-cols-3">
           <article class="border border-paper/15 p-6">
             <div class="relative grid aspect-[4/3] place-items-center overflow-hidden bg-ink-soft text-center">
-              <span class="absolute inset-0 grid place-items-center px-6 text-xs uppercase tracking-[0.2em] text-paper/40">Photo coming soon</span>
-              <img src="/interviews/andi-knoll.jpg" alt="Archer FilmStudios with Andi Knoll on the set of Setz di her" width="800" height="600" loading="lazy" decoding="async" class="relative h-full w-full object-cover" data-fallback-image />
+              <span class="absolute inset-0 grid place-items-center px-6 text-xs uppercase tracking-[0.2em] text-paper/40" data-i18n="home.photoSoon">Photo coming soon</span>
+              <img src="/interviews/andi-knoll.jpg" data-i18n-alt="home.what1Alt" alt="Archer FilmStudios with Andi Knoll on the set of Setz di her" width="800" height="600" loading="lazy" decoding="async" class="relative h-full w-full object-cover" data-fallback-image />
             </div>
-            <h3 class="mt-4 font-display text-2xl uppercase">Setz di her</h3>
-            <p class="mt-2 text-sm leading-relaxed text-paper/70">Our interview series “Setz di her” — conversations with known faces from Austrian film and television, including Andi Knoll, about their craft, their beginnings, and what they learned along the way.</p>
+            <h3 class="mt-4 font-display text-2xl uppercase" data-i18n="home.what1Title">Setz di her</h3>
+            <p class="mt-2 text-sm leading-relaxed text-paper/70" data-i18n="home.what1Text">Our interview series “Setz di her” — conversations with known faces from Austrian film and television, including Andi Knoll, about their craft, their beginnings, and what they learned along the way.</p>
           </article>
           <article class="border border-paper/15 p-6">
             <div class="relative grid aspect-[4/3] place-items-center overflow-hidden bg-ink-soft text-center">
-              <span class="absolute inset-0 grid place-items-center px-6 text-xs uppercase tracking-[0.2em] text-paper/40">Photo coming soon</span>
-              <img src="/interviews/short-films.jpg" alt="Behind the scenes of an Archer FilmStudios short film production" width="800" height="600" loading="lazy" decoding="async" class="relative h-full w-full object-cover" data-fallback-image />
+              <span class="absolute inset-0 grid place-items-center px-6 text-xs uppercase tracking-[0.2em] text-paper/40" data-i18n="home.photoSoon">Photo coming soon</span>
+              <img src="/interviews/short-films.jpg" data-i18n-alt="home.what2Alt" alt="Behind the scenes of an Archer FilmStudios short film production" width="800" height="600" loading="lazy" decoding="async" class="relative h-full w-full object-cover" data-fallback-image />
             </div>
-            <h3 class="mt-4 font-display text-2xl uppercase">Short film productions</h3>
-            <p class="mt-2 text-sm leading-relaxed text-paper/70">From the first idea to the premiere: we write, shoot, and edit short films together — everyone finds a role, from camera and sound to directing and editing.</p>
+            <h3 class="mt-4 font-display text-2xl uppercase" data-i18n="home.what2Title">Short film productions</h3>
+            <p class="mt-2 text-sm leading-relaxed text-paper/70" data-i18n="home.what2Text">From the first idea to the premiere: we write, shoot, and edit short films together — everyone finds a role, from camera and sound to directing and editing.</p>
           </article>
           <article class="border border-paper/15 p-6">
             <div class="relative grid aspect-[4/3] place-items-center overflow-hidden bg-ink-soft text-center">
-              <span class="absolute inset-0 grid place-items-center px-6 text-xs uppercase tracking-[0.2em] text-paper/40">Photo coming soon</span>
-              <img src="/interviews/trips.jpg" alt="Archer FilmStudios members on a photo trip" width="800" height="600" loading="lazy" decoding="async" class="relative h-full w-full object-cover" data-fallback-image />
+              <span class="absolute inset-0 grid place-items-center px-6 text-xs uppercase tracking-[0.2em] text-paper/40" data-i18n="home.photoSoon">Photo coming soon</span>
+              <img src="/interviews/trips.jpg" data-i18n-alt="home.what3Alt" alt="Archer FilmStudios members on a photo trip" width="800" height="600" loading="lazy" decoding="async" class="relative h-full w-full object-cover" data-fallback-image />
             </div>
-            <h3 class="mt-4 font-display text-2xl uppercase">Trips &amp; photo walks</h3>
-            <p class="mt-2 text-sm leading-relaxed text-paper/70">Joint trips across Austria and abroad, regular photo walks, and exhibitions of our work — filmmaking and photography, side by side.</p>
+            <h3 class="mt-4 font-display text-2xl uppercase" data-i18n="home.what3Title">Trips &amp; photo walks</h3>
+            <p class="mt-2 text-sm leading-relaxed text-paper/70" data-i18n="home.what3Text">Joint trips across Austria and abroad, regular photo walks, and exhibitions of our work — filmmaking and photography, side by side.</p>
           </article>
         </div>
       </section>
 
       <section id="who-we-are" aria-labelledby="who-title" class="border-y border-paper/10 bg-ink-soft">
         <div class="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32 lg:px-10">
-          <p class="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-amber">Who we are</p>
-          <h2 id="who-title" class="font-display text-5xl font-semibold uppercase leading-[0.88] tracking-[-0.035em] sm:text-7xl">
+          <p class="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-amber" data-i18n="home.whoKicker">Who we are</p>
+          <h2 id="who-title" data-i18n="home.whoTitle" class="font-display text-5xl font-semibold uppercase leading-[0.88] tracking-[-0.035em] sm:text-7xl">
             A film &amp; photography club from St. Pölten.
           </h2>
           <div class="mt-12 grid items-start gap-10 lg:grid-cols-[1.1fr_0.9fr]">
             <div class="max-w-xl space-y-5 text-base leading-relaxed text-paper/70">
-              <p>Archer FilmStudios is a non-profit club of filmmakers and photographers from St. Pölten in Lower Austria. It was founded by Sebastian Krumböck and Klemens Ruhrhofer out of a simple observation: the most exciting films and photos are rarely made alone.</p>
-              <p>What began as two friends with a camera and an idea quickly grew into a crew. Today the club brings together directors, camera operators, editors, sound designers, photographers, and actors — professionals, passionate amateurs, and complete beginners learning their craft side by side.</p>
-              <p>We founded the club to learn from each other, realize short films, interview series, and photo projects none of us could manage alone, and give young talent from the region a stage. Whether you shoot on cinema cameras or your phone — if you love moving images and stills, you belong with us.</p>
+              <p data-i18n="home.whoP1">Archer FilmStudios is a non-profit club of filmmakers and photographers from St. Pölten in Lower Austria. It was founded by Sebastian Krumböck and Klemens Ruhrhofer out of a simple observation: the most exciting films and photos are rarely made alone.</p>
+              <p data-i18n="home.whoP2">What began as two friends with a camera and an idea quickly grew into a crew. Today the club brings together directors, camera operators, editors, sound designers, photographers, and actors — professionals, passionate amateurs, and complete beginners learning their craft side by side.</p>
+              <p data-i18n="home.whoP3">We founded the club to learn from each other, realize short films, interview series, and photo projects none of us could manage alone, and give young talent from the region a stage. Whether you shoot on cinema cameras or your phone — if you love moving images and stills, you belong with us.</p>
             </div>
             <figure>
               <div class="relative grid aspect-[4/3] place-items-center overflow-hidden bg-ink text-center">
-                <span class="absolute inset-0 grid place-items-center px-6 text-xs uppercase tracking-[0.2em] text-paper/40">Photo coming soon</span>
-                <img src="/founders.jpg" alt="The two founders of Archer FilmStudios, Sebastian Krumböck and Klemens Ruhrhofer" width="800" height="600" loading="lazy" decoding="async" class="relative h-full w-full object-cover" data-fallback-image />
+                <span class="absolute inset-0 grid place-items-center px-6 text-xs uppercase tracking-[0.2em] text-paper/40" data-i18n="home.photoSoon">Photo coming soon</span>
+                <img src="/founders.jpg" data-i18n-alt="home.foundersAlt" alt="The two founders of Archer FilmStudios, Sebastian Krumböck and Klemens Ruhrhofer" width="800" height="600" loading="lazy" decoding="async" class="relative h-full w-full object-cover" data-fallback-image />
               </div>
-              <figcaption class="mt-3 text-xs uppercase tracking-[0.14em] text-paper/60">The founders: Sebastian Krumböck &amp; Klemens Ruhrhofer</figcaption>
+              <figcaption class="mt-3 text-xs uppercase tracking-[0.14em] text-paper/60" data-i18n="home.foundersCaption">The founders: Sebastian Krumböck &amp; Klemens Ruhrhofer</figcaption>
             </figure>
           </div>
         </div>
       </section>
 
       <section id="join" aria-labelledby="join-title" class="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32 lg:px-10">
-        <p class="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-amber">Join the club</p>
-        <h2 id="join-title" class="max-w-3xl font-display text-5xl font-semibold uppercase leading-[0.88] tracking-[-0.035em] sm:text-7xl">
+        <p class="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-amber" data-i18n="home.joinKicker">Join the club</p>
+        <h2 id="join-title" data-i18n="home.joinTitle" class="max-w-3xl font-display text-5xl font-semibold uppercase leading-[0.88] tracking-[-0.035em] sm:text-7xl">
           Become a member.
         </h2>
         <div class="mt-8 max-w-xl space-y-5 text-base leading-relaxed text-paper/70">
-          <p>Write us an email at <a class="text-amber" href="mailto:archerfilmstudios@gmail.com">archerfilmstudios@gmail.com</a> and tell us who you are. The first year of membership is free — afterwards it is just 12&nbsp;€ per year.</p>
-          <p>We meet monthly in St. Pölten and online. Come to a meetup, bring your questions, and see if we fit.</p>
+          <p data-i18n-html="home.joinEmail">Write us an email at <a class="text-amber" href="mailto:archerfilmstudios@gmail.com">archerfilmstudios@gmail.com</a> and tell us who you are. The first year of membership is free — afterwards it is just 12&nbsp;€ per year.</p>
+          <p data-i18n="home.joinMeetup">We meet monthly in St. Pölten and online. Come to a meetup, bring your questions, and see if we fit.</p>
         </div>
       </section>
 
       <section id="contact" aria-labelledby="contact-title" class="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32 lg:px-10">
         <div class="grid gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-24">
           <div>
-            <p class="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-amber">Make contact</p>
-            <h2 id="contact-title" class="font-display text-6xl font-semibold uppercase leading-[0.82] tracking-[-0.04em] sm:text-8xl">
+            <p class="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-amber" data-i18n="home.contactKicker">Make contact</p>
+            <h2 id="contact-title" data-i18n-html="home.contactTitle" class="font-display text-6xl font-semibold uppercase leading-[0.82] tracking-[-0.04em] sm:text-8xl">
               Bring us<br />your<br /><span class="text-amber">frame.</span>
             </h2>
           </div>
           <div class="flex flex-col justify-end">
-            <p class="max-w-xl text-xl leading-relaxed text-paper/75 sm:text-2xl">Want to collaborate, join a meetup, or simply compare notes on a sequence you are making?</p>
+            <p class="max-w-xl text-xl leading-relaxed text-paper/75 sm:text-2xl" data-i18n="home.contactInvite">Want to collaborate, join a meetup, or simply compare notes on a sequence you are making?</p>
             <a class="mt-10 inline-flex w-fit items-center gap-5 border-b border-amber pb-3 font-display text-3xl text-amber transition-colors hover:text-paper sm:text-5xl" href="mailto:archerfilmstudios@gmail.com">archerfilmstudios@gmail.com <span aria-hidden="true">↗</span></a>
             <div class="mt-10 flex flex-col gap-3 text-sm uppercase tracking-[0.14em] text-paper/60 sm:flex-row sm:gap-8">
               <a class="transition-colors hover:text-amber" href="https://instagram.com/archerfilmstudios" target="_blank" rel="noreferrer">@archerfilmstudios <span aria-hidden="true">↗</span></a>

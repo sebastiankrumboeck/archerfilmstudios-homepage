@@ -1,30 +1,30 @@
 import { bindMenu, bindImageFallbacks } from './main.js';
 import { api } from './api/client.js';
 import { SOCIALS } from './data/socials.js';
-import { bindLangToggle, applyI18n } from './i18n/index.js';
+import { bindLangToggle, applyI18n, t } from './i18n/index.js';
 
 const LANG_TOGGLE = `<span class="inline-flex items-center gap-1 text-sm"><button type="button" data-lang="de" class="transition-colors hover:text-amber">DE</button><span aria-hidden="true" class="text-paper/40">/</span><button type="button" data-lang="en" class="transition-colors hover:text-amber">EN</button></span>`;
 
 const NAV = [
-  ['/', 'Home', false],
-  ['/films/', 'Films', false],
-  ['/projects/', 'Projects', true],
-  ['/calendar/', 'Calendar', true],
-  ['/board/', 'Board', true],
-  ['/members/', 'Members', true],
-  ['/mitschriften/', 'Mitschriften', true],
-  ['/ideenbox/', 'Ideenbox', true],
-  ['/archiv/', 'Archiv', true, 'vorstand'],
-  ['/versammlung/', 'Versammlung', true, 'admin'],
-  ['/finanzen/', 'Finanzen', true, 'kassier'],
-  ['/contact/', 'Contact', false],
+  ['/', 'nav.home', false],
+  ['/films/', 'nav.films', false],
+  ['/projects/', 'nav.projects', true],
+  ['/calendar/', 'nav.calendar', true],
+  ['/board/', 'nav.board', true],
+  ['/members/', 'nav.members', true],
+  ['/mitschriften/', 'nav.mitschriften', true],
+  ['/ideenbox/', 'nav.ideenbox', true],
+  ['/archiv/', 'nav.archiv', true, 'vorstand'],
+  ['/versammlung/', 'nav.versammlung', true, 'admin'],
+  ['/finanzen/', 'nav.finanzen', true, 'kassier'],
+  ['/contact/', 'nav.contact', false],
 ];
 
 export function headerHTML(active) {
   const render = (extra = '') =>
     NAV.map(
-      ([href, label, priv, role]) =>
-        `<a class="transition-colors hover:text-amber" href="${href}"${priv ? ' data-private-link' : ''}${role ? ` data-${role}-link` : ''}${extra}${href === activeHref(active) ? ' aria-current="page"' : ''}>${label}</a>`,
+      ([href, key, priv, role]) =>
+        `<a class="transition-colors hover:text-amber" href="${href}" data-i18n="${key}"${priv ? ' data-private-link' : ''}${role ? ` data-${role}-link` : ''}${extra}${href === activeHref(active) ? ' aria-current="page"' : ''}>${t(key)}</a>`,
     ).join('');
   const desktop = render();
   const mobile = render();
@@ -36,7 +36,7 @@ export function headerHTML(active) {
         </a>
         <nav class="hidden items-center gap-8 text-sm md:flex" aria-label="Primary navigation">
           ${desktop}
-          <a class="transition-colors hover:text-amber" href="/login/" data-auth-link>Login</a>
+          <a class="transition-colors hover:text-amber" href="/login/" data-auth-link data-i18n="nav.login">Login</a>
           ${LANG_TOGGLE}
         </nav>
         <button
@@ -46,6 +46,7 @@ export function headerHTML(active) {
           aria-expanded="false"
           aria-controls="mobile-navigation"
           aria-label="Open navigation menu"
+          data-i18n-aria="nav.menu"
         >
           <span data-menu-icon aria-hidden="true" class="text-amber">+</span>
         </button>
@@ -53,7 +54,7 @@ export function headerHTML(active) {
       <nav id="mobile-navigation" data-mobile-nav data-open="false" class="mobile-navigation border-t border-paper/10 px-5 pb-5 md:hidden" aria-label="Mobile navigation">
         <div class="flex flex-col gap-4 pt-4 text-sm uppercase tracking-[0.14em]">
           ${mobile}
-          <a class="transition-colors hover:text-amber" href="/login/" data-auth-link>Login</a>
+          <a class="transition-colors hover:text-amber" href="/login/" data-auth-link data-i18n="nav.login">Login</a>
           ${LANG_TOGGLE}
         </div>
       </nav>
@@ -65,9 +66,9 @@ export function footerHTML() {
     <footer class="border-t border-paper/10 px-5 py-8 sm:px-8 lg:px-10">
       <div class="mx-auto flex max-w-7xl flex-col gap-3 text-xs uppercase tracking-[0.14em] text-paper/60 sm:flex-row sm:items-center sm:justify-between">
         <p>© 2026 Archer FilmStudios</p>
-        <p><a class="transition-colors hover:text-amber" href="/impressum/">Imprint</a></p>
+        <p><a class="transition-colors hover:text-amber" href="/impressum/" data-i18n="footer.imprint">Imprint</a></p>
         <p><a class="transition-colors hover:text-amber" href="${SOCIALS.instagram}" target="_blank" rel="noreferrer">@archerfilmstudios ↗</a></p>
-        <p>Made for curious eyes</p>
+        <p data-i18n="footer.tagline">Made for curious eyes</p>
       </div>
     </footer>`;
 }
@@ -100,7 +101,8 @@ export async function refreshAuthLink(root = document) {
       const logout = document.createElement('button');
       logout.type = 'button';
       logout.className = 'transition-colors hover:text-amber';
-      logout.textContent = 'Log out';
+      logout.setAttribute('data-i18n', 'nav.logout');
+      logout.textContent = t('nav.logout');
       logout.addEventListener('click', async () => {
         try {
           await api('/api/auth/logout', { method: 'POST', body: '{}' });
@@ -111,7 +113,7 @@ export async function refreshAuthLink(root = document) {
       });
       link.replaceWith(logout);
     } else {
-      link.textContent = 'Login';
+      link.textContent = t('nav.login');
       link.setAttribute('href', '/login/');
     }
   }
