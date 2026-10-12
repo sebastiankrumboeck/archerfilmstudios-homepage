@@ -129,3 +129,22 @@ CREATE TABLE absence_requests (
 );
 CREATE INDEX idx_absence_project ON absence_requests(project_id);
 CREATE INDEX idx_absence_user ON absence_requests(user_id);
+CREATE TABLE call_sheets (
+  project_id TEXT PRIMARY KEY,
+  call_time TEXT,
+  meeting_point TEXT DEFAULT '',
+  schedule TEXT DEFAULT '',
+  logistics TEXT DEFAULT '',
+  emergency_contacts TEXT DEFAULT '',
+  published_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE call_sheet_roles (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  user_id TEXT,
+  UNIQUE(project_id, role)
+);
+CREATE INDEX idx_callsheet_roles_project ON call_sheet_roles(project_id);
