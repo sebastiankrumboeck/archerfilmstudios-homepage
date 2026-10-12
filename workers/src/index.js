@@ -1255,6 +1255,96 @@ app.patch('/api/projects/:id/reminders', requireUser, async (c) => {
   return ok(c, { reminders_enabled: enabled ? 1 : 0 });
 });
 
+// --- Call sheets ---
+export const CALL_SHEET_ROLES = ['Kamera', 'Ton', 'Regie', 'Schnitt', 'Foto', 'Schauspiel', 'Organisation', 'Fahrer'];
+
+const emptySheet = (projectId) => ({
+  project_id: projectId,
+  call_time: null,
+  meeting_point: null,
+  schedule: null,
+  logistics: null,
+  emergency_contacts: null,
+  published_at: null,
+});
+
+async function sheetWithRoles(db, projectId) {
+  const sheet = (await db.prepare('SELECT * FROM call_sheets WHERE project_id = ?').bind(projectId).first()) ?? emptySheet(projectId);
+  const { results } = await db.prepare('SELECT * FROM call_sheet_roles WHERE project_id = ?').bind(projectId).all();
+  const byRole = new Map((results ?? []).map((r) => [r.role, r]));
+  const roles = [];
+  for (const role of CALL_SHEET_ROLES) {
+    const row = byRole.get(role);
+    let user_name = null;
+    if (row?.user_id) {
+      const u = await db.prepare('SELECT id, name FROM users WHERE id = ?').bind(row.user_id).first();
+      user_name = u?.name ?? null;
+    }
+    roles.push({ role, user_id: row?.user_id ?? null, user_name });
+  }
+  return { sheet, roles };
+}
+
+app.get('/api/projects/:id/callsheet', requireUser, async (c) => {
+  const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(c.req.param('id')).first();
+  if (!project) return fail(c, 'Nicht gefunden.', 404);
+  return ok(c, await sheetWithRoles(c.env.DB, project.id));
+});
+
+app.put('/api/projects/:id/callsheet', requireUser, async (c) => {
+  const session = c.get('session');
+  const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(c.req.param('id')).first();
+  if (!project) return fail(c, 'Nicht gefunden.', 404);
+  if (project.head_user_id !== session.user_id && !session.is_admin) return fail(c, 'Nur Head oder Admin.', 403);
+  const body = await c.req.json().catch(() => ({}));
+  const trim5k = (v, name) => {
+    const s = v == null || v === '' ? null : String(v);
+    if (s != null && s.length > 5000) throw new Error(`${name} ist zu lang (max. 5000 Zeichen).`);
+    return s;
+  };
+  let call_time = null;
+  let meeting_point = null;
+  let schedule = null;
+  let logistics = null;
+  let emergency_contacts = null;
+  let roles = [];
+  try {
+    if (body.call_time != null && body.call_time !== '') {
+      if (Number.isNaN(Date.parse(body.call_time))) return fail(c, 'Ungültige Call-Time.', 400);
+      call_time = body.call_time;
+    }
+    meeting_point = trim5k(body.meeting_point, 'Der Treffpunkt');
+    schedule = trim5k(body.schedule, 'Der Tagesablauf');
+    logistics = trim5k(body.logistics, 'Die Logistik-Infos');
+    emergency_contacts = trim5k(body.emergency_contacts, 'Die Notfallkontakte');
+    if (!Array.isArray(body.roles)) return fail(c, 'Rollen fehlen.', 400);
+    roles = [];
+    for (const r of body.roles) {
+      const role = String(r?.role ?? '').trim();
+      if (!CALL_SHEET_ROLES.includes(role)) return fail(c, `Unbekannte Rolle: ${role || '–'}.`, 400);
+      const user_id = r?.user_id ?? null;
+      if (user_id != null) {
+        const u = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(user_id).first();
+        if (!u) return fail(c, 'Unbekanntes Mitglied.', 400);
+      }
+      roles.push({ role, user_id });
+    }
+  } catch (err) {
+    return fail(c, err.message, 400);
+  }
+  const now = nowISO();
+  const stmts = [
+    c.env.DB.prepare(`INSERT INTO call_sheets (project_id, call_time, meeting_point, schedule, logistics, emergency_contacts, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(project_id) DO UPDATE SET call_time=excluded.call_time, meeting_point=excluded.meeting_point, schedule=excluded.schedule, logistics=excluded.logistics, emergency_contacts=excluded.emergency_contacts, updated_at=excluded.updated_at`)
+      .bind(project.id, call_time, meeting_point, schedule, logistics, emergency_contacts, now, now),
+    c.env.DB.prepare('DELETE FROM call_sheet_roles WHERE project_id = ?').bind(project.id),
+    ...roles.map((r) => c.env.DB.prepare('INSERT INTO call_sheet_roles (id, project_id, role, user_id) VALUES (?, ?, ?, ?)').bind(uid('csr'), project.id, r.role, r.user_id)),
+  ];
+  await c.env.DB.batch(stmts);
+  return ok(c, await sheetWithRoles(c.env.DB, project.id));
+});
+
 app.scheduled = (event, env, ctx) => ctx.waitUntil(sendShootReminders(env, new Date().toISOString()));
 
 export default app;
