@@ -1,6 +1,7 @@
 import { mountLayout } from '../layout.js';
 import { api } from '../api/client.js';
 import { renderFilmForm, renderFilms } from '../views/films.js';
+import { t } from '../i18n/index.js';
 
 await mountLayout('films');
 const view = document.querySelector('#app-view');
@@ -19,7 +20,7 @@ async function load() {
     onCreate: () => load(),
     onEdit: (film) => renderFilmForm(view, { film, onSave: () => load() }),
     onDelete: async (film) => {
-      if (!confirm(`Really delete "${film.title}"?`)) return;
+      if (!confirm(t('films.confirmDelete').replace('{title}', film.title))) return;
       try {
         await api(`/api/films/${film.id}`, { method: 'DELETE' });
         await load();
@@ -32,7 +33,7 @@ async function load() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'mb-6 border border-amber px-5 py-3 text-xs uppercase tracking-widest';
-    btn.textContent = '+ Add film';
+    btn.textContent = t('films.addFilm');
     btn.addEventListener('click', () => renderFilmForm(view, opts));
     view.innerHTML = '';
     view.append(btn);
@@ -49,3 +50,9 @@ try {
 } catch (err) {
   view.innerHTML = `<p class="text-red-400">${err.message}</p>`;
 }
+
+window.addEventListener('archer:lang', () => {
+  load().catch((err) => {
+    view.innerHTML = `<p class="text-red-400">${err.message}</p>`;
+  });
+});

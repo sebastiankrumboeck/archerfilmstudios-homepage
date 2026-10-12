@@ -1,5 +1,8 @@
 import { mountLayout } from '../layout.js';
-import { renderContact } from '../views/contact.js';
+import { renderContact, rerenderContact } from '../views/contact.js';
 
 await mountLayout('contact');
-renderContact(document.querySelector('#app-view'));
+const view = document.querySelector('#app-view');
+renderContact(view);
+
+window.addEventListener('archer:lang', () => rerenderContact(view));

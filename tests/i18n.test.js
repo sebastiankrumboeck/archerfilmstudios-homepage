@@ -1,5 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { getLang, setLang, t, applyI18n, bindLangToggle, DICT } from '../src/i18n/index.js';
+import { renderFilms } from '../src/views/films.js';
+import { renderContact, rerenderContact } from '../src/views/contact.js';
 
 describe('i18n core', () => {
   beforeEach(() => {
@@ -45,8 +47,7 @@ describe('i18n core', () => {
     expect(document.querySelector('button').getAttribute('aria-label')).toBe(DICT.de['nav.home']);
   });
 
-  it('header toggle switches language, marks active, and survives reload', () => {
-    document.body.innerHTML = `
+  it('header toggle switches language, marks active, and survives reload', () => {    document.body.innerHTML = `
       <button data-lang="de">DE</button><span>/</span><button data-lang="en">EN</button>
       <p data-i18n="nav.home"></p>`;
     let switches = 0;
@@ -59,5 +60,47 @@ describe('i18n core', () => {
     expect(switches).toBe(1);
     // simulated reload: fresh read from same storage
     expect(getLang()).toBe('de');
+  });
+});
+
+describe('i18n dynamic views', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    document.documentElement.lang = 'en';
+  });
+
+  it('films empty state, poster fallback, and admin labels render German', () => {
+    setLang('de');
+    const el = document.createElement('div');
+    renderFilms(el, [], {});
+    expect(el.textContent).toContain(DICT.de['films.empty']);
+    const one = document.createElement('div');
+    renderFilms(one, [{ id: 'f1', title: 'T', url: 'https://x.at', poster_r2_key: null }], { isAdmin: true });
+    expect(one.textContent).toContain(DICT.de['films.posterSoon']);
+    expect(one.textContent).toContain(DICT.de['films.edit']);
+    expect(one.textContent).toContain(DICT.de['films.delete']);
+  });
+
+  it('contact form renders German labels, button, and validation message', () => {
+    setLang('de');
+    const el = document.createElement('div');
+    renderContact(el);
+    expect(el.querySelector('input[name="name"]').placeholder).toBe(DICT.de['contact.namePh']);
+    expect(el.querySelector('button').textContent).toContain(DICT.de['contact.send']);
+    el.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    expect(el.querySelector('[data-status]').textContent).toBe(DICT.de['contact.invalid']);
+  });
+
+  it('contact re-render preserves typed input', () => {
+    setLang('en');
+    const el = document.createElement('div');
+    renderContact(el);
+    el.querySelector('input[name="name"]').value = 'Anna';
+    el.querySelector('textarea[name="message"]').value = 'Hallo';
+    setLang('de');
+    rerenderContact(el);
+    expect(el.querySelector('input[name="name"]').value).toBe('Anna');
+    expect(el.querySelector('textarea[name="message"]').value).toBe('Hallo');
+    expect(el.querySelector('button').textContent).toContain(DICT.de['contact.send']);
   });
 });
