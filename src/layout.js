@@ -10,6 +10,7 @@ const NAV = [
   ['/board/', 'Board', true],
   ['/members/', 'Members', true],
   ['/mitschriften/', 'Mitschriften', true],
+  ['/ideenbox/', 'Ideenbox', true],
   ['/archiv/', 'Archiv', true, 'vorstand'],
   ['/versammlung/', 'Versammlung', true, 'admin'],
   ['/finanzen/', 'Finanzen', true, 'kassier'],
