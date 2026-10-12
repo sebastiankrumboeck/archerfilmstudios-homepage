@@ -160,3 +160,12 @@ CREATE TABLE role_applications (
 );
 CREATE UNIQUE INDEX idx_role_applications_unique ON role_applications(project_id, role, user_id);
 CREATE INDEX idx_role_applications_project ON role_applications(project_id);
+CREATE TABLE ideas (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  author_name TEXT NOT NULL,
+  script_r2_key TEXT,
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX idx_ideas_creator ON ideas(created_by);
