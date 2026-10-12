@@ -1345,6 +1345,41 @@ app.put('/api/projects/:id/callsheet', requireUser, async (c) => {
   return ok(c, await sheetWithRoles(c.env.DB, project.id));
 });
 
+app.post('/api/projects/:id/callsheet/publish', requireUser, async (c) => {
+  const session = c.get('session');
+  const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(c.req.param('id')).first();
+  if (!project) return fail(c, 'Nicht gefunden.', 404);
+  if (project.head_user_id !== session.user_id && !session.is_admin) return fail(c, 'Nur Head oder Admin.', 403);
+  const now = nowISO();
+  const marked = await c.env.DB.prepare('UPDATE call_sheets SET published_at = ? WHERE project_id = ? AND published_at IS NULL')
+    .bind(now, project.id).run();
+  if (!marked.meta.changes) return fail(c, 'Bereits veröffentlicht.', 409);
+  const { sheet } = await sheetWithRoles(c.env.DB, project.id);
+  const { results } = await c.env.DB.prepare('SELECT u.email, u.name FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.project_id = ?')
+    .bind(project.id).all();
+  const link = `https://archerfilmstudios.com/projects/?id=${project.id}`;
+  let sent = 0;
+  let failed = 0;
+  for (const m of results ?? []) {
+    const r = await sendMail(c.env, {
+      to: m.email,
+      subject: `${project.title}: Call Sheet – Archer FilmStudios`,
+      text: [
+        `Hallo ${m.name},`,
+        '',
+        `das Call Sheet für „${project.title}“ ist da.`,
+        `Call-Time: ${sheet.call_time ?? '–'}`,
+        `Treffpunkt: ${sheet.meeting_point ?? '–'}`,
+        '',
+        link,
+      ].join('\n'),
+    });
+    if (r.ok) sent += 1;
+    else failed += 1;
+  }
+  return ok(c, { published_at: now, email: { sent, failed } });
+});
+
 app.scheduled = (event, env, ctx) => ctx.waitUntil(sendShootReminders(env, new Date().toISOString()));
 
 export default app;

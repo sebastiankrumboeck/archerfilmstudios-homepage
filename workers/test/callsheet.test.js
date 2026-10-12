@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import app from '../src/index.js';
 
 const SESSIONS = {
@@ -17,6 +17,10 @@ function makeState() {
     ],
     projects: [
       { id: 'p1', title: 'Nachtdreh', start_at: '2026-11-08T18:00:00.000Z', end_at: '2026-11-08T22:00:00.000Z', location: 'St. Pölten', head_user_id: 'u-head' },
+    ],
+    memberships: [
+      { project_id: 'p1', user_id: 'u-head' },
+      { project_id: 'p1', user_id: 'u-1' },
     ],
     sheets: [],
     roles: [],
@@ -38,6 +42,9 @@ function fakeDb(state) {
     },
     all: async (sql, args) => {
       if (sql.includes('FROM call_sheet_roles')) return { results: state.roles.filter((r) => r.project_id === args[0]) };
+      if (sql.includes('JOIN users')) {
+        return { results: state.memberships.filter((m) => m.project_id === args[0]).map((m) => state.users.find((u) => u.id === m.user_id)) };
+      }
       return { results: [] };
     },
     run: async (sql, args) => {
@@ -54,6 +61,12 @@ function fakeDb(state) {
       }
       if (sql.startsWith('INSERT INTO call_sheet_roles')) {
         state.roles.push({ id: args[0], project_id: args[1], role: args[2], user_id: args[3] });
+        return { meta: { changes: 1 } };
+      }
+      if (sql.startsWith('UPDATE call_sheets SET published_at')) {
+        const sheet = state.sheets.find((s) => s.project_id === args[1]);
+        if (!sheet || sheet.published_at) return { meta: { changes: 0 } };
+        sheet.published_at = args[0];
         return { meta: { changes: 1 } };
       }
       return {};
@@ -138,5 +151,64 @@ describe('call sheet GET/PUT', () => {
     const kamera = data.roles.find((r) => r.role === 'Kamera');
     expect(kamera.user_id).toBe('u-1');
     expect(kamera.user_name).toBeNull();
+  });
+});
+
+describe('call sheet publish', () => {
+  it('first publish mails every member once in German', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const state = makeState();
+      await requestWith(state, '/api/projects/p1/callsheet', 's-head', 'PUT', PUT_BODY);
+      const res = await requestWith(state, '/api/projects/p1/callsheet/publish', 's-head', 'POST');
+      expect(res.status).toBe(200);
+      const { data } = await res.json();
+      expect(data.published_at).toBeTruthy();
+      expect(data.email).toMatchObject({ sent: 2, failed: 0 });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const bodies = fetchMock.mock.calls.map(([, opts]) => JSON.parse(opts.body));
+      expect(bodies[0].subject).toMatch(/Nachtdreh.*Call Sheet/);
+      expect(bodies[0].text).toContain('Bahnhof St. Pölten');
+      expect(bodies[0].text).toContain('/projects/?id=p1');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('second publish is 409 with no further email', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const state = makeState();
+      await requestWith(state, '/api/projects/p1/callsheet', 's-head', 'PUT', PUT_BODY);
+      await requestWith(state, '/api/projects/p1/callsheet/publish', 's-head', 'POST');
+      fetchMock.mockClear();
+      const res = await requestWith(state, '/api/projects/p1/callsheet/publish', 's-head', 'POST');
+      expect(res.status).toBe(409);
+      expect((await res.json()).error).toMatch(/Bereits veröffentlicht/);
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('publish without members and without API key still publishes', async () => {
+    const state = makeState();
+    state.memberships = [];
+    await requestWith(state, '/api/projects/p1/callsheet', 's-head', 'PUT', PUT_BODY);
+    const res = await app.request('/api/projects/p1/callsheet/publish', {
+      method: 'POST',
+      headers: { Cookie: 'app-session=s-head' },
+    }, { DB: fakeDb(state) });
+    expect(res.status).toBe(200);
+    const { data } = await res.json();
+    expect(data.published_at).toBeTruthy();
+    expect(data.email.sent).toBe(0);
+  });
+
+  it('publish by plain member is 403', async () => {
+    const res = await requestWith(makeState(), '/api/projects/p1/callsheet/publish', 's-m', 'POST');
+    expect(res.status).toBe(403);
   });
 });
