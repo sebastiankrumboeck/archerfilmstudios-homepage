@@ -76,23 +76,24 @@ function fakeDb(state) {
         return { meta: { changes: 1 } };
       }
       if (sql.startsWith('UPDATE role_applications SET status')) {
-        if (sql.includes('SET status = ?')) {
-          const row = state.applications.find((a) => a.id === args[args.length - 1]);
-          if (!row || row.status !== 'pending') return { meta: { changes: 0 } };
-          row.status = args[0];
-          row.decided_by = args[1];
-          row.decided_at = args[2];
-          return { meta: { changes: 1 } };
-        }
-        let n = 0;
-        for (const a of state.applications) {
-          if (a.project_id === args[args.length - 3] && a.role === args[args.length - 2] && a.status === 'pending' && a.id !== args[args.length - 1]) {
-            a.status = 'rejected';
-            a.decided_by = 'auto';
-            n += 1;
+        if (sql.includes('id != ?')) {
+          let n = 0;
+          for (const a of state.applications) {
+            if (a.project_id === args[args.length - 3] && a.role === args[args.length - 2] && a.status === 'pending' && a.id !== args[args.length - 1]) {
+              a.status = 'rejected';
+              a.decided_by = 'auto';
+              n += 1;
+            }
           }
+          return { meta: { changes: n } };
         }
-        return { meta: { changes: n } };
+        const row = state.applications.find((a) => a.id === args[args.length - 1]);
+        if (!row || row.status !== 'pending') return { meta: { changes: 0 } };
+        const lit = sql.match(/SET status = '(\w+)'/);
+        row.status = lit ? lit[1] : args[0];
+        row.decided_by = args[0];
+        row.decided_at = args[1];
+        return { meta: { changes: 1 } };
       }
       if (sql.startsWith('DELETE FROM role_applications')) {
         state.applications = state.applications.filter((a) => a.project_id !== args[0]);
@@ -110,6 +111,7 @@ function fakeDb(state) {
   return {
     prepare: (sql) => ({ bind: (...args) => stmt(sql, args, handlers) }),
     batch: async (stmts) => {
+      if (state.failBatch) throw new Error('D1 down');
       const out = [];
       for (const s of stmts) out.push(await handlers.run(s._sql, s._args));
       return out;
@@ -217,5 +219,20 @@ describe('crew role applications', () => {
     const res = await requestWith(state, '/api/projects/p1', 's-a', 'DELETE');
     expect(res.status).toBe(200);
     expect(state.applications).toHaveLength(0);
+  });
+
+  it('failed batch leaves the application pending and retryable', async () => {
+    const state = makeState();
+    const applied = await requestWith(state, '/api/projects/p1/roles/apply', 's-m', 'POST', { role: 'Ton' });
+    const id = (await applied.json()).data.application_id;
+    state.failBatch = true;
+    const res = await requestWith(state, `/api/role-applications/${id}/decision`, 's-head', 'POST', { approved: true });
+    expect(res.status).toBe(500);
+    expect(state.applications.find((a) => a.id === id).status).toBe('pending');
+    expect(state.roles.find((r) => r.role === 'Ton')).toBeUndefined();
+    state.failBatch = false;
+    const retry = await requestWith(state, `/api/role-applications/${id}/decision`, 's-head', 'POST', { approved: true });
+    expect(retry.status).toBe(200);
+    expect(state.roles.find((r) => r.role === 'Ton').user_id).toBe('u-1');
   });
 });

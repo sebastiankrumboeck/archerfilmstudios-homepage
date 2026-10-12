@@ -1497,16 +1497,20 @@ app.post('/api/role-applications/:id/decision', requireUser, async (c) => {
   const body = await c.req.json().catch(() => ({}));
   if (body.approved !== true && body.approved !== false) return fail(c, 'Ungültige Entscheidung.', 400);
   const now = nowISO();
-  const claimed = await c.env.DB.prepare("UPDATE role_applications SET status = ?, decided_by = ?, decided_at = ? WHERE id = ? AND status = 'pending'")
-    .bind(body.approved ? 'approved' : 'rejected', session.user_id, now, app.id).run();
-  if (!claimed.meta.changes) return fail(c, 'Bereits entschieden.', 409);
   if (body.approved) {
-    await c.env.DB.batch([
+    const results = await c.env.DB.batch([
+      c.env.DB.prepare("UPDATE role_applications SET status = 'approved', decided_by = ?, decided_at = ? WHERE id = ? AND status = 'pending'")
+        .bind(session.user_id, now, app.id),
       c.env.DB.prepare('DELETE FROM call_sheet_roles WHERE project_id = ? AND role = ?').bind(app.project_id, app.role),
       c.env.DB.prepare('INSERT INTO call_sheet_roles (id, project_id, role, user_id) VALUES (?, ?, ?, ?)').bind(uid('csr'), app.project_id, app.role, app.user_id),
       c.env.DB.prepare("UPDATE role_applications SET status = 'rejected', decided_by = ?, decided_at = ? WHERE project_id = ? AND role = ? AND status = 'pending' AND id != ?")
         .bind(session.user_id, now, app.project_id, app.role, app.id),
     ]);
+    if (!results[0]?.meta?.changes) return fail(c, 'Bereits entschieden.', 409);
+  } else {
+    const claimed = await c.env.DB.prepare("UPDATE role_applications SET status = 'rejected', decided_by = ?, decided_at = ? WHERE id = ? AND status = 'pending'")
+      .bind(session.user_id, now, app.id).run();
+    if (!claimed.meta.changes) return fail(c, 'Bereits entschieden.', 409);
   }
   const member = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(app.user_id).first();
   const email = member?.email ? await sendMail(c.env, {
